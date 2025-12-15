@@ -69,75 +69,75 @@ newtype Rule = Rule
 derive instance Newtype Rule _
 derive newtype instance Show Rule
 
-newtype Prop' id = Prop
+newtype Prop id = Prop
   { name :: PropName
-  , args :: List (Tm' id)
+  , args :: List (Tm id)
   }
 
-type RuleProp = Prop' RuleId
-type Prop = Prop' Id
+type RuleProp = Prop RuleId
+type HotProp = Prop Id
 
-derive instance Newtype (Prop' id) _
-derive newtype instance Show id => Show (Prop' id)
+derive instance Newtype (Prop id) _
+derive newtype instance Show id => Show (Prop id)
 
-data Ty' name
+data Ty name
   = RefTy name
   | UnitTy
   | BoolTy
 
-type WeirdTy = Ty' TyName
-type Ty = Ty' Void
+type WeirdTy = Ty TyName
+type NormTy = Ty Void
 
-derive instance Generic (Ty' name) _
+derive instance Generic (Ty name) _
 
-instance Show name => Show (Ty' name) where
+instance Show name => Show (Ty name) where
   show x = genericShow x
 
-instance Eq name => Eq (Ty' name) where
+instance Eq name => Eq (Ty name) where
   eq x = genericEq x
 
-data Lat' name
+data Lat name
   = RefLat name
   | UnitLat
   -- | False < True
   | BoolLat
 
-type WeirdLat = Lat' LatName
-type Lat = Lat' Void
+type WeirdLat = Lat LatName
+type NormLat = Lat Void
 
-derive instance Generic (Lat' name) _
+derive instance Generic (Lat name) _
 
-instance Show name => Show (Lat' name) where
+instance Show name => Show (Lat name) where
   show x = genericShow x
 
-instance Eq name => Eq (Lat' name) where
+instance Eq name => Eq (Lat name) where
   eq x = genericEq x
 
-data Tm' id
-  = VarTm (Var' id)
+data Tm id
+  = VarTm (Var id)
   | UnitTm
   | BoolTm Boolean
 
-type RuleTm = Tm' RuleId
-type Tm = Tm' Id
+type RuleTm = Tm RuleId
+type HotTm = Tm Id
 
-derive instance Generic (Tm' id) _
+derive instance Generic (Tm id) _
 
-instance Show id => Show (Tm' id) where
+instance Show id => Show (Tm id) where
   show x = genericShow x
 
-instance Eq id => Eq (Tm' id) where
+instance Eq id => Eq (Tm id) where
   eq x = genericEq x
 
-newtype Var' id = Var { name :: VarName, id :: id }
+newtype Var id = Var { name :: VarName, id :: id }
 
-type RuleVar = Var' RuleId
-type Var = Var' Id
+type RuleVar = Var RuleId
+type HotVar = Var Id
 
-derive instance Newtype (Var' id) _
-derive newtype instance Show id => Show (Var' id)
-derive newtype instance Eq id => Eq (Var' id)
-derive newtype instance Ord id => Ord (Var' id)
+derive instance Newtype (Var id) _
+derive newtype instance Show id => Show (Var id)
+derive newtype instance Eq id => Eq (Var id)
+derive newtype instance Ord id => Ord (Var id)
 
 type RuleId = Unit
 type Id = UUID
@@ -195,7 +195,7 @@ derive newtype instance Ord VarName
 
 --------------------------------------------------------------------------------
 
-extractTy :: Lat -> Ty
+extractTy :: NormLat -> NormTy
 extractTy (RefLat x) = absurd x
 extractTy UnitLat = UnitTy
 extractTy BoolLat = BoolTy

@@ -41,7 +41,7 @@ normalizeTy
   => MonadReader Ctx m
   => MonadState Env m
   => WeirdTy
-  -> m Ty
+  -> m NormTy
 normalizeTy (RefTy x) = gets (view (prop' @"tyDefs" <<< at x)) >>= case _ of
   Nothing -> throwError $ makeError [ "typecheck" ] $ "Unknown reference to type of the name \"" <> unwrap x <> "\""
   Just (TyDef td) -> normalizeTy td.ty
@@ -55,7 +55,7 @@ normalizeLat
   => MonadReader Ctx m
   => MonadState Env m
   => WeirdLat
-  -> m Lat
+  -> m NormLat
 normalizeLat (RefLat x) = gets (view (prop' @"latDefs" <<< at x)) >>= case _ of
   Nothing -> throwError $ makeError [ "typecheck" ] $ "Unknown reference to lattice of the name \"" <> unwrap x <> "\""
   Just (LatDef ld) -> normalizeLat ld.lat

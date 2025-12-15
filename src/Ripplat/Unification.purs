@@ -3,7 +3,7 @@ module Ripplat.Unification where
 import Prelude
 
 import Data.Tuple.Nested (type (/\), (/\))
-import Ripplat.Grammr (Tm, Tm'(..), Var)
+import Ripplat.Grammr (HotTm, Tm(..), HotVar)
 import Control.Monad.Error.Class (class MonadError, throwError)
 import Control.Monad.State (class MonadState)
 import Data.Lens ((%=))
@@ -11,10 +11,10 @@ import Data.Map (Map)
 import Data.Map as Map
 import Utility (prop')
 
-type Problem = Tm /\ Tm
+type Problem = HotTm /\ HotTm
 
 type Env =
-  { sigma :: Map Var Tm
+  { sigma :: Map HotVar HotTm
   }
 
 unify :: forall m. MonadState Env m => MonadError Problem m => Problem -> m Unit

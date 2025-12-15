@@ -15,6 +15,7 @@ import Data.UUID (UUID)
 data Module = Module
   { name :: ModuleName
   , tyDefs :: List TyDef
+  , latDefs :: List LatDef
   , propDefs :: List PropDef
   , ruleDefs :: List RuleDef
   }

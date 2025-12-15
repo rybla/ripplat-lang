@@ -41,6 +41,7 @@ package:
     - web-events
     - web-html
     - web-uievents
+    - spec-node
   test:
     main: Test.Main
     dependencies: []

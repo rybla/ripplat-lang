@@ -10,6 +10,7 @@ import Control.Monad.Reader (class MonadReader)
 import Control.Monad.State (class MonadState, gets)
 import Control.Monad.Writer (class MonadWriter, tell)
 import Data.Array as Array
+import Data.Either (Either(..))
 import Data.Foldable (length, traverse_)
 import Data.Lens (view, (.=))
 import Data.Lens.At (at)
@@ -50,7 +51,6 @@ makeCheckError label source msg = CheckError { label, source, msg }
 
 derive instance Newtype CheckError _
 
-
 --------------------------------------------------------------------------------
 
 normalizeTy
@@ -67,10 +67,10 @@ normalizeTy (AppTy x ts) = do
   case result of
     Nothing -> throwError $ makeError [ "check" ] $ "Unknown reference to type of the name \"" <> unwrap x <> "\""
     Just (TyDef td) -> normalizeTy td.ty -- TODO: actually need to do substituion of args for params here
-normalizeTy UnitTy = pure UnitTy
-normalizeTy BoolTy = pure BoolTy
+normalizeTy (UnitTy l) = pure $ UnitTy l
+normalizeTy (BoolTy l) = pure $ BoolTy l
 
-normalizeLat
+normalizeLatTy
   :: forall m
    . MonadLogger Log m
   => MonadError Error m
@@ -79,13 +79,13 @@ normalizeLat
   => MonadWriter (Array CheckError) m
   => WeirdLat
   -> m NormLat
-normalizeLat (AppLat x ls) = do
+normalizeLatTy (AppTy x ts) = do
   result <- gets $ view $ prop' @"latDefs" <<< at x
   case result of
-    Nothing -> throwError $ makeError [ "check" ] $ "Unknown reference to lattice of the name \"" <> unwrap x <> "\""
-    Just (LatDef ld) -> normalizeLat ld.lat
-normalizeLat UnitLat = pure UnitLat
-normalizeLat BoolLat = pure BoolLat
+    Nothing -> throwError $ makeError [ "check" ] $ "Unknown reference to type of the name \"" <> unwrap x <> "\""
+    Just (LatDef ld) -> normalizeLatTy ld.lat -- TODO: actually need to do substituion of args for params here
+normalizeLatTy (UnitTy l) = pure $ UnitTy l
+normalizeLatTy (BoolTy l) = pure $ BoolTy l
 
 --------------------------------------------------------------------------------
 
@@ -106,7 +106,7 @@ checkModule (Module mdl) = do
   prop' @"propDefs" .= (mdl.propDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable)
 
   checkWeirdTyDef `traverse_` mdl.tyDefs
-  checkWeirdLatDef `traverse_` mdl.latDefs
+  checkWeirdLatTyDef `traverse_` mdl.latDefs
   checkPropDef `traverse_` mdl.propDefs
   checkRuleDef `traverse_` mdl.ruleDefs
 
@@ -127,7 +127,7 @@ checkWeirdTyDef (TyDef td) = do
   log $ makeLog [ "check" ] $ "type " <> unwrap td.name
   checkWeirdTy td.ty
 
-checkWeirdLatDef
+checkWeirdLatTyDef
   :: forall m
    . MonadLogger Log m
   => MonadReader Ctx m
@@ -136,9 +136,9 @@ checkWeirdLatDef
   => MonadError Error m
   => LatDef
   -> m Unit
-checkWeirdLatDef (LatDef ld) = do
+checkWeirdLatTyDef (LatDef ld) = do
   log $ makeLog [ "check" ] $ "lattice " <> unwrap ld.name
-  checkWeirdLat ld.lat
+  checkWeirdLatTy ld.lat
   pure unit
 
 checkPropDef
@@ -152,7 +152,7 @@ checkPropDef
   -> m Unit
 checkPropDef (PropDef pd) = do
   log $ makeLog [ "check" ] $ "prop " <> unwrap pd.name
-  checkWeirdLat `traverse_` pd.params
+  checkWeirdLatTy `traverse_` pd.params
 
 checkRuleDef
   :: forall m
@@ -200,10 +200,10 @@ checkWeirdTy t0@(AppTy x ts) = do
       unless (expectedArity == actualArity) do
         tell [ makeCheckError "type_arity" (pretty t0) $ "The type family " <> pretty x <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
       checkWeirdTy `traverse_` ts
-checkWeirdTy UnitTy = pure unit
-checkWeirdTy BoolTy = pure unit
+checkWeirdTy (UnitTy l) = pure unit
+checkWeirdTy (BoolTy l) = pure unit
 
-checkWeirdLat
+checkWeirdLatTy
   :: forall m
    . MonadLogger Log m
   => MonadReader Ctx m
@@ -212,7 +212,7 @@ checkWeirdLat
   => MonadError Error m
   => WeirdLat
   -> m Unit
-checkWeirdLat t0@(AppLat x ts) = do
+checkWeirdLatTy t0@(AppTy x ts) = do
   result <- gets $ view $ prop' @"latDefs" <<< at x
   case result of
     Nothing -> tell [ makeCheckError "lattice_ref" (pretty t0) $ "Unknown reference to lattice " <> pretty x <> "." ]
@@ -221,9 +221,9 @@ checkWeirdLat t0@(AppLat x ts) = do
       let actualArity = length ts
       unless (expectedArity == actualArity) do
         tell [ makeCheckError "lattice_arity" (pretty t0) $ "The lattice family " <> pretty x <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
-      checkWeirdLat `traverse_` ts
-checkWeirdLat UnitLat = pure unit
-checkWeirdLat BoolLat = pure unit
+      checkWeirdLatTy `traverse_` ts
+checkWeirdLatTy (UnitTy _) = pure unit
+checkWeirdLatTy (BoolTy _) = pure unit
 
 checkColdProp
   :: forall m
@@ -243,7 +243,7 @@ checkColdProp p0@(Prop p) = do
       let actualArity = p.args # length
       unless (expectedArity == actualArity) do
         tell [ makeCheckError "prop_arity" (pretty p0) $ "The proposition " <> pretty p.name <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
-      doms <- normalizeLat `traverse` pd.params
+      doms <- normalizeLatTy `traverse` (todo "pd.params")
       uncurry checkColdTerm `traverse_` (doms `Array.zip` p.args)
 
 checkColdTerm

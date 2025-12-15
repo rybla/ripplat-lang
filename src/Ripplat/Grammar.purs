@@ -2,6 +2,8 @@ module Ripplat.Grammr where
 
 import Prelude
 
+import Data.Either (Either(..))
+import Data.Either.Nested (type (\/))
 import Data.Eq.Generic (genericEq)
 import Data.Foldable (length)
 import Data.Generic.Rep (class Generic)
@@ -120,48 +122,53 @@ instance Pretty id => Pretty (Prop id) where
 derive instance Newtype (Prop id) _
 derive newtype instance Show id => Show (Prop id)
 
-data Ty name
-  = AppTy name (Array (Ty name))
-  | UnitTy
-  | BoolTy
+data Ty' lat name
+  = AppTy name (Array (Ty' lat name))
+  | UnitTy lat
+  | BoolTy lat
 
+type WeirdTy' lat = Ty' lat Unit
+type NormTy' lat = Ty' lat Void
+
+type Ty = Ty' Unit
 type WeirdTy = Ty TyName
 type NormTy = Ty Void
 
-derive instance Generic (Ty name) _
+derive instance Generic (Ty' lat name) _
 
-instance Show name => Show (Ty name) where
+instance (Show lat, Show name) => Show (Ty' lat name) where
   show x = genericShow x
 
-instance Eq name => Eq (Ty name) where
+instance (Eq lat, Eq name) => Eq (Ty' lat name) where
   eq x = genericEq x
 
 instance Pretty name => Pretty (Ty name) where
   pretty (AppTy x ts) = pretty x <> "(" <> (ts # map pretty # commas) <> ")"
-  pretty UnitTy = "Unit"
-  pretty BoolTy = "Bool"
+  pretty (UnitTy _) = "Unit"
+  pretty (BoolTy _) = "Bool"
 
-data Lat name
-  = AppLat name (Array (Lat name))
-  | UnitLat
-  -- | False < True
-  | BoolLat
+type LatTy = Ty' Lat
 
-type WeirdLat = Lat LatName
-type NormLat = Lat Void
+type WeirdLat = LatTy LatName
+type NormLat = LatTy Void
 
-derive instance Generic (Lat name) _
+data Lat = CanonicalLat
 
-instance Show name => Show (Lat name) where
+derive instance Generic Lat _
+
+instance Show Lat where
   show x = genericShow x
 
-instance Eq name => Eq (Lat name) where
+instance Eq Lat where
   eq x = genericEq x
 
-instance Pretty name => Pretty (Lat name) where
-  pretty (AppLat x ts) = pretty x <> "(" <> (ts # map pretty # commas) <> ")"
-  pretty UnitLat = "Unit"
-  pretty BoolLat = "Bool"
+instance Pretty Lat where
+  pretty CanonicalLat = "Canonical"
+
+instance Pretty name => Pretty (LatTy name) where
+  pretty (AppTy x ts) = pretty x <> "(" <> (ts # map pretty # commas) <> ")"
+  pretty (UnitTy l) = "Unit@" <> pretty l
+  pretty (BoolTy l) = "Bool@" <> pretty l
 
 data Tm var
   = VarTm (Var var)
@@ -280,10 +287,21 @@ derive newtype instance Ord VarName
 
 --------------------------------------------------------------------------------
 
+class LatOrUnit lat where
+  fromLatOrUnit :: forall f. Functor f => f lat -> f Lat \/ f Unit
+
+instance LatOrUnit Lat where
+  fromLatOrUnit = Left
+
+instance LatOrUnit Unit where
+  fromLatOrUnit = Right
+
+--------------------------------------------------------------------------------
+
 extractTy :: NormLat -> NormTy
-extractTy (AppLat x _) = absurd x
-extractTy UnitLat = UnitTy
-extractTy BoolLat = BoolTy
+extractTy (AppTy x _) = absurd x
+extractTy (UnitTy _) = UnitTy unit
+extractTy (BoolTy _) = BoolTy unit
 
 latArity :: LatDef -> Int
 latArity (LatDef td) = td.params # length

@@ -9,16 +9,18 @@ import Control.Monad.Logger (class MonadLogger, log)
 import Control.Monad.Reader (class MonadReader)
 import Control.Monad.State (class MonadState, gets)
 import Control.Monad.Writer (class MonadWriter, tell)
+import Data.Array as Array
 import Data.Foldable (length, traverse_)
 import Data.Lens (view, (.=))
 import Data.Lens.At (at)
-import Data.List (List)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
+import Data.Traversable (traverse)
+import Data.Tuple (uncurry)
 import Data.Tuple.Nested ((/\))
-import Ripplat.Common (Error(..), Log, makeError, makeLog)
+import Ripplat.Common (Error, Log, makeError, makeLog)
 import Text.Pretty (pretty)
 
 --------------------------------------------------------------------------------
@@ -48,6 +50,7 @@ makeCheckError label source msg = CheckError { label, source, msg }
 
 derive instance Newtype CheckError _
 
+
 --------------------------------------------------------------------------------
 
 normalizeTy
@@ -63,7 +66,7 @@ normalizeTy (AppTy x ts) = do
   result <- gets $ view $ prop' @"tyDefs" <<< at x
   case result of
     Nothing -> throwError $ makeError [ "check" ] $ "Unknown reference to type of the name \"" <> unwrap x <> "\""
-    Just (TyDef td) -> normalizeTy td.ty
+    Just (TyDef td) -> normalizeTy td.ty -- TODO: actually need to do substituion of args for params here
 normalizeTy UnitTy = pure UnitTy
 normalizeTy BoolTy = pure BoolTy
 
@@ -175,8 +178,8 @@ checkRule
   -> m Unit
 checkRule (Rule r) = do
   log $ makeLog [ "check" ] $ "rule " <> unwrap r.name
-  checkProp `traverse_` r.hyps
-  checkProp r.conc
+  checkColdProp `traverse_` r.hyps
+  checkColdProp r.conc
 
 checkWeirdTy
   :: forall m
@@ -222,14 +225,37 @@ checkWeirdLat t0@(AppLat x ts) = do
 checkWeirdLat UnitLat = pure unit
 checkWeirdLat BoolLat = pure unit
 
--- TODO: this should work for any `id` type since i just dont do anything in that case?? or i should actually keep track of a mapping of what the inferred types are of each of the uses of a variable? 
-checkProp
-  :: forall m id
+checkColdProp
+  :: forall m
    . MonadLogger Log m
   => MonadReader Ctx m
   => MonadState Env m
   => MonadWriter (Array CheckError) m
   => MonadError Error m
-  => Prop id
+  => ColdProp
   -> m Unit
-checkProp prop = todo "checkProp"
+checkColdProp p0@(Prop p) = do
+  result <- gets $ view $ prop' @"propDefs" <<< at p.name
+  case result of
+    Nothing -> tell [ makeCheckError "prop" (pretty p0) $ "Unknown reference to proposition " <> pretty p.name <> "." ]
+    Just (PropDef pd) -> do
+      let expectedArity = PropDef pd # propArity
+      let actualArity = p.args # length
+      unless (expectedArity == actualArity) do
+        tell [ makeCheckError "prop_arity" (pretty p0) $ "The proposition " <> pretty p.name <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
+      doms <- normalizeLat `traverse` pd.params
+      uncurry checkColdTerm `traverse_` (doms `Array.zip` p.args)
+
+checkColdTerm
+  :: forall m
+   . MonadLogger Log m
+  => MonadReader Ctx m
+  => MonadState Env m
+  => MonadWriter (Array CheckError) m
+  => MonadError Error m
+  => NormLat
+  -> ColdTm
+  -> m Unit
+checkColdTerm l (VarTm _) = todo "checkColdTerm"
+checkColdTerm l UnitTm = todo "checkColdTerm"
+checkColdTerm l (BoolTm _) = todo "checkColdTerm"

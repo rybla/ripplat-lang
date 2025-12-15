@@ -89,8 +89,8 @@ instance Pretty LatDef where
 
 newtype Rule = Rule
   { name :: RuleName
-  , hyps :: Array RuleProp
-  , conc :: RuleProp
+  , hyps :: Array ColdProp
+  , conc :: ColdProp
   }
 
 derive instance Newtype Rule _
@@ -109,7 +109,7 @@ newtype Prop id = Prop
   , args :: Array (Tm id)
   }
 
-type RuleProp = Prop TrivialId
+type ColdProp = Prop TrivialId
 type HotProp = Prop HotId
 
 instance Pretty id => Pretty (Prop id) where
@@ -161,38 +161,38 @@ instance Pretty name => Pretty (Lat name) where
   pretty UnitLat = "Unit"
   pretty BoolLat = "Bool"
 
-data Tm id
-  = VarTm (Var id)
+data Tm var
+  = VarTm (Var var)
   | UnitTm
   | BoolTm Boolean
 
-type RuleTm = Tm TrivialId
+type ColdTm = Tm TrivialId
 type HotTm = Tm HotId
 
-derive instance Generic (Tm id) _
+derive instance Generic (Tm var) _
 
-instance Show id => Show (Tm id) where
+instance Show var => Show (Tm var) where
   show x = genericShow x
 
-instance Eq id => Eq (Tm id) where
+instance Eq var => Eq (Tm var) where
   eq x = genericEq x
 
-instance Pretty id => Pretty (Tm id) where
+instance Pretty var => Pretty (Tm var) where
   pretty (VarTm x) = pretty x
   pretty UnitTm = "unit"
   pretty (BoolTm b) = if b then "true" else "false"
 
-newtype Var id = Var { name :: VarName, id :: id }
+newtype Var var = Var { name :: VarName, id :: var }
 
-type RuleVar = Var TrivialId
+type ColdVar = Var TrivialId
 type HotVar = Var HotId
 
-derive instance Newtype (Var id) _
-derive newtype instance Show id => Show (Var id)
-derive newtype instance Eq id => Eq (Var id)
-derive newtype instance Ord id => Ord (Var id)
+derive instance Newtype (Var var) _
+derive newtype instance Show var => Show (Var var)
+derive newtype instance Eq var => Eq (Var var)
+derive newtype instance Ord var => Ord (Var var)
 
-instance Pretty id => Pretty (Var id) where
+instance Pretty var => Pretty (Var var) where
   pretty (Var v) = unwrap v.name <> pretty v.id
 
 data TrivialId = TrivialId
@@ -288,4 +288,7 @@ latArity (LatDef td) = td.params # length
 
 tyArity :: TyDef -> Int
 tyArity (TyDef td) = td.params # length
+
+propArity :: PropDef -> Int
+propArity (PropDef pd) = pd.params # length
 

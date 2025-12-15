@@ -5,33 +5,52 @@ import Prelude
 import Data.Eq.Generic (genericEq)
 import Data.Foldable (length)
 import Data.Generic.Rep (class Generic)
-import Data.List (List)
-import Data.Newtype (class Newtype)
+import Data.Map as Map
+import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
+import Data.String (joinWith)
 import Data.UUID (UUID)
+import Options.Applicative.Internal.Utils (unLines)
+import Text.Pretty (class Pretty, commas, indent, pretty, unLines2)
 
 --------------------------------------------------------------------------------
 
 newtype Module = Module
   { name :: ModuleName
-  , tyDefs :: List TyDef
-  , latDefs :: List LatDef
-  , propDefs :: List PropDef
-  , ruleDefs :: List RuleDef
+  , tyDefs :: Array TyDef
+  , latDefs :: Array LatDef
+  , propDefs :: Array PropDef
+  , ruleDefs :: Array RuleDef
   }
 
 derive instance Newtype Module _
 derive newtype instance Show Module
 
+instance Pretty Module where
+  pretty (Module mdl) =
+    unLines
+      [ "module " <> unwrap mdl.name <> ":"
+      , indent $ unLines2
+          [ unLines2 $ map pretty mdl.tyDefs
+          , unLines2 $ map pretty mdl.latDefs
+          , unLines2 $ map pretty mdl.propDefs
+          , unLines2 $ map pretty mdl.ruleDefs
+          ]
+      ]
+
 --------------------------------------------------------------------------------
 
 newtype PropDef = PropDef
   { name :: PropName
-  , params :: List WeirdTy
+  , params :: Array WeirdTy
   }
 
 derive instance Newtype PropDef _
 derive newtype instance Show PropDef
+
+instance Pretty PropDef where
+  pretty (PropDef pd) =
+    "prop " <> unwrap pd.name <> "(" <> (pd.params # map pretty # commas) <> ")"
 
 newtype RuleDef = RuleDef
   { rule :: Rule
@@ -40,48 +59,70 @@ newtype RuleDef = RuleDef
 derive instance Newtype RuleDef _
 derive newtype instance Show RuleDef
 
+instance Pretty RuleDef where
+  pretty (RuleDef rd) = pretty rd.rule
+
 newtype TyDef = TyDef
   { name :: TyName
-  , params :: List TyName
+  , params :: Array TyName
   , ty :: WeirdTy
   }
 
 derive instance Newtype TyDef _
 derive newtype instance Show TyDef
 
+instance Pretty TyDef where
+  pretty (TyDef td) =
+    "type " <> unwrap td.name <> "(" <> (td.params # map pretty # commas) <> ")"
+
 newtype LatDef = LatDef
   { name :: LatName
-  , params :: List LatName
+  , params :: Array LatName
   , lat :: WeirdLat
   }
 
 derive instance Newtype LatDef _
 derive newtype instance Show LatDef
 
+instance Pretty LatDef where
+  pretty (LatDef ld) =
+    "lattice " <> unwrap ld.name <> "(" <> (ld.params # map pretty # commas) <> ")"
+
 --------------------------------------------------------------------------------
 
 newtype Rule = Rule
   { name :: RuleName
-  , hyps :: List RuleProp
+  , hyps :: Array RuleProp
   , conc :: RuleProp
   }
 
 derive instance Newtype Rule _
 derive newtype instance Show Rule
 
+instance Pretty Rule where
+  pretty (Rule r) = unLines
+    [ "rule " <> unwrap r.name <> ":"
+    , indent $ unLines $ map pretty $ r.hyps
+    , indent "----"
+    , indent $ pretty $ r.conc
+    ]
+
 newtype Prop id = Prop
   { name :: PropName
-  , args :: List (Tm id)
+  , args :: Array (Tm id)
   }
 
-type RuleProp = Prop RuleId
-type HotProp = Prop Id
+type RuleProp = Prop TrivialId
+type HotProp = Prop HotId
+
+instance Pretty id => Pretty (Prop id) where
+  pretty (Prop p) = unwrap p.name <> "(" <> (p.args # map pretty # commas) <> ")"
 
 derive instance Newtype (Prop id) _
 derive newtype instance Show id => Show (Prop id)
 
 data Ty name
-  = RefTy name
+  = AppTy name (Array (Ty name))
   | UnitTy
   | BoolTy
 
@@ -96,8 +137,13 @@ instance Show name => Show (Ty name) where
 instance Eq name => Eq (Ty name) where
   eq x = genericEq x
 
+instance Pretty name => Pretty (Ty name) where
+  pretty (AppTy x ts) = pretty x <> "(" <> (ts # map pretty # commas) <> ")"
+  pretty UnitTy = "Unit"
+  pretty BoolTy = "Bool"
+
 data Lat name
-  = RefLat name
+  = AppLat name (Array (Lat name))
   | UnitLat
   -- | False < True
   | BoolLat
@@ -113,13 +159,18 @@ instance Show name => Show (Lat name) where
 instance Eq name => Eq (Lat name) where
   eq x = genericEq x
 
+instance Pretty name => Pretty (Lat name) where
+  pretty (AppLat x ts) = pretty x <> "(" <> (ts # map pretty # commas) <> ")"
+  pretty UnitLat = "Unit"
+  pretty BoolLat = "Bool"
+
 data Tm id
   = VarTm (Var id)
   | UnitTm
   | BoolTm Boolean
 
-type RuleTm = Tm RuleId
-type HotTm = Tm Id
+type RuleTm = Tm TrivialId
+type HotTm = Tm HotId
 
 derive instance Generic (Tm id) _
 
@@ -129,18 +180,46 @@ instance Show id => Show (Tm id) where
 instance Eq id => Eq (Tm id) where
   eq x = genericEq x
 
+instance Pretty id => Pretty (Tm id) where
+  pretty (VarTm x) = pretty x
+  pretty UnitTm = "unit"
+  pretty (BoolTm b) = if b then "true" else "false"
+
 newtype Var id = Var { name :: VarName, id :: id }
 
-type RuleVar = Var RuleId
-type HotVar = Var Id
+type RuleVar = Var TrivialId
+type HotVar = Var HotId
 
 derive instance Newtype (Var id) _
 derive newtype instance Show id => Show (Var id)
 derive newtype instance Eq id => Eq (Var id)
 derive newtype instance Ord id => Ord (Var id)
 
-type RuleId = Unit
-type Id = UUID
+instance Pretty id => Pretty (Var id) where
+  pretty (Var v) = unwrap v.name <> pretty v.id
+
+data TrivialId = TrivialId
+
+derive instance Generic TrivialId _
+
+instance Show TrivialId where
+  show x = genericShow x
+
+instance Eq TrivialId where
+  eq x = genericEq x
+
+instance Pretty TrivialId where
+  pretty _ = ""
+
+newtype HotId = HotId Int
+
+derive instance Newtype HotId _
+derive newtype instance Show HotId
+derive newtype instance Eq HotId
+derive newtype instance Ord HotId
+
+instance Pretty HotId where
+  pretty (HotId n) = "@" <> show n
 
 --------------------------------------------------------------------------------
 
@@ -148,6 +227,7 @@ newtype ModuleName = ModuleName String
 
 derive instance Newtype ModuleName _
 derive newtype instance Show ModuleName
+derive newtype instance Pretty ModuleName
 derive newtype instance Eq ModuleName
 derive newtype instance Ord ModuleName
 
@@ -155,6 +235,7 @@ newtype PropName = PropName String
 
 derive instance Newtype PropName _
 derive newtype instance Show PropName
+derive newtype instance Pretty PropName
 derive newtype instance Eq PropName
 derive newtype instance Ord PropName
 
@@ -162,6 +243,7 @@ newtype RuleName = RuleName String
 
 derive instance Newtype RuleName _
 derive newtype instance Show RuleName
+derive newtype instance Pretty RuleName
 derive newtype instance Eq RuleName
 derive newtype instance Ord RuleName
 
@@ -169,6 +251,7 @@ newtype LatName = LatName String
 
 derive instance Newtype LatName _
 derive newtype instance Show LatName
+derive newtype instance Pretty LatName
 derive newtype instance Eq LatName
 derive newtype instance Ord LatName
 
@@ -176,6 +259,7 @@ newtype TyName = TyName String
 
 derive instance Newtype TyName _
 derive newtype instance Show TyName
+derive newtype instance Pretty TyName
 derive newtype instance Eq TyName
 derive newtype instance Ord TyName
 
@@ -183,6 +267,7 @@ newtype TmName = TmName String
 
 derive instance Newtype TmName _
 derive newtype instance Show TmName
+derive newtype instance Pretty TmName
 derive newtype instance Eq TmName
 derive newtype instance Ord TmName
 
@@ -190,13 +275,14 @@ newtype VarName = VarName String
 
 derive instance Newtype VarName _
 derive newtype instance Show VarName
+derive newtype instance Pretty VarName
 derive newtype instance Eq VarName
 derive newtype instance Ord VarName
 
 --------------------------------------------------------------------------------
 
 extractTy :: NormLat -> NormTy
-extractTy (RefLat x) = absurd x
+extractTy (AppLat x _) = absurd x
 extractTy UnitLat = UnitTy
 extractTy BoolLat = BoolTy
 

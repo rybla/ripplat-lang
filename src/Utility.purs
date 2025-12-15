@@ -1,10 +1,10 @@
 module Utility where
 
-import Data.Profunctor.Strong
 import Prelude
-import Type.Prelude
-import Prim.Row
 
+import Data.Profunctor.Strong (class Strong)
+import Type.Prelude (class IsSymbol, Proxy(..))
+import Prim.Row (class Cons)
 import Data.Lens.Record (prop)
 import Partial.Unsafe (unsafeCrashWith)
 

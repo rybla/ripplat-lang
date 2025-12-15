@@ -1,9 +1,9 @@
 module Ripplat.Unification where
 
-import Data.Tuple.Nested
 import Prelude
-import Ripplat.Grammr
 
+import Data.Tuple.Nested (type (/\), (/\))
+import Ripplat.Grammr (Tm, Tm'(..), Var)
 import Control.Monad.Error.Class (class MonadError, throwError)
 import Control.Monad.State (class MonadState)
 import Data.Lens ((%=))

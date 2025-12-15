@@ -3,16 +3,16 @@ module Ripplat.Grammr where
 import Prelude
 
 import Data.Eq.Generic (genericEq)
+import Data.Foldable (length)
 import Data.Generic.Rep (class Generic)
 import Data.List (List)
 import Data.Newtype (class Newtype)
-import Data.Ord.Generic (genericCompare)
 import Data.Show.Generic (genericShow)
 import Data.UUID (UUID)
 
 --------------------------------------------------------------------------------
 
-data Module = Module
+newtype Module = Module
   { name :: ModuleName
   , tyDefs :: List TyDef
   , latDefs :: List LatDef
@@ -20,84 +20,56 @@ data Module = Module
   , ruleDefs :: List RuleDef
   }
 
-derive instance Generic Module _
-
-instance Show Module where
-  show x = genericShow x
-
-instance Eq Module where
-  eq x = genericEq x
+derive instance Newtype Module _
+derive newtype instance Show Module
 
 --------------------------------------------------------------------------------
 
-data PropDef = PropDef
+newtype PropDef = PropDef
   { name :: PropName
-  , params :: List Ty
+  , params :: List WeirdTy
   }
 
-derive instance Generic PropDef _
+derive instance Newtype PropDef _
+derive newtype instance Show PropDef
 
-instance Show PropDef where
-  show x = genericShow x
-
-instance Eq PropDef where
-  eq x = genericEq x
-
-data RuleDef = RuleDef
+newtype RuleDef = RuleDef
   { rule :: Rule
   }
 
-derive instance Generic RuleDef _
+derive instance Newtype RuleDef _
+derive newtype instance Show RuleDef
 
-instance Show RuleDef where
-  show x = genericShow x
-
-instance Eq RuleDef where
-  eq x = genericEq x
-
-data TyDef = TyDef
-  { name :: String
-  , ty :: Ty
+newtype TyDef = TyDef
+  { name :: TyName
+  , params :: List TyName
+  , ty :: WeirdTy
   }
 
-derive instance Generic TyDef _
+derive instance Newtype TyDef _
+derive newtype instance Show TyDef
 
-instance Show TyDef where
-  show x = genericShow x
-
-instance Eq TyDef where
-  eq x = genericEq x
-
-data LatDef = LatDef
+newtype LatDef = LatDef
   { name :: LatName
-  , lat :: Lat
+  , params :: List LatName
+  , lat :: WeirdLat
   }
 
-derive instance Generic LatDef _
-
-instance Show LatDef where
-  show x = genericShow x
-
-instance Eq LatDef where
-  eq x = genericEq x
+derive instance Newtype LatDef _
+derive newtype instance Show LatDef
 
 --------------------------------------------------------------------------------
 
-data Rule = Rule
+newtype Rule = Rule
   { name :: RuleName
   , hyps :: List RuleProp
   , conc :: RuleProp
   }
 
-derive instance Generic Rule _
+derive instance Newtype Rule _
+derive newtype instance Show Rule
 
-instance Show Rule where
-  show x = genericShow x
-
-instance Eq Rule where
-  eq x = genericEq x
-
-data Prop' id = Prop
+newtype Prop' id = Prop
   { name :: PropName
   , args :: List (Tm' id)
   }
@@ -105,13 +77,8 @@ data Prop' id = Prop
 type RuleProp = Prop' RuleId
 type Prop = Prop' Id
 
-derive instance Generic (Prop' id) _
-
-instance Show id => Show (Prop' id) where
-  show x = genericShow x
-
-instance Eq id => Eq (Prop' id) where
-  eq x = genericEq x
+derive instance Newtype (Prop' id) _
+derive newtype instance Show id => Show (Prop' id)
 
 data Ty' name
   = RefTy name
@@ -162,21 +129,15 @@ instance Show id => Show (Tm' id) where
 instance Eq id => Eq (Tm' id) where
   eq x = genericEq x
 
-data Var' id = Var String id
+newtype Var' id = Var { name :: VarName, id :: id }
 
 type RuleVar = Var' RuleId
 type Var = Var' Id
 
-derive instance Generic (Var' id) _
-
-instance Show id => Show (Var' id) where
-  show x = genericShow x
-
-instance Eq id => Eq (Var' id) where
-  eq x = genericEq x
-
-instance Ord id => Ord (Var' id) where
-  compare x = genericCompare x
+derive instance Newtype (Var' id) _
+derive newtype instance Show id => Show (Var' id)
+derive newtype instance Eq id => Eq (Var' id)
+derive newtype instance Ord id => Ord (Var' id)
 
 type RuleId = Unit
 type Id = UUID
@@ -225,10 +186,23 @@ derive newtype instance Show TmName
 derive newtype instance Eq TmName
 derive newtype instance Ord TmName
 
+newtype VarName = VarName String
+
+derive instance Newtype VarName _
+derive newtype instance Show VarName
+derive newtype instance Eq VarName
+derive newtype instance Ord VarName
+
 --------------------------------------------------------------------------------
 
-fromLatToTy :: Lat -> Ty
-fromLatToTy (RefLat x) = absurd x
-fromLatToTy UnitLat = UnitTy
-fromLatToTy BoolLat = BoolTy
+extractTy :: Lat -> Ty
+extractTy (RefLat x) = absurd x
+extractTy UnitLat = UnitTy
+extractTy BoolLat = BoolTy
+
+latArity :: LatDef -> Int
+latArity (LatDef td) = td.params # length
+
+tyArity :: TyDef -> Int
+tyArity (TyDef td) = td.params # length
 

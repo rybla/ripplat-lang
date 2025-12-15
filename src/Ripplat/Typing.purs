@@ -2,42 +2,78 @@ module Ripplat.Typing where
 
 import Prelude
 import Ripplat.Grammr
-
-import Control.Monad.Logger (class MonadLogger)
-import Control.Monad.Reader (class MonadReader)
-import Control.Monad.State (class MonadState)
-import Data.Foldable (traverse_)
-import Data.Lens ((.=))
-import Data.List (List)
-import Ripplat.Common (Log)
 import Utility
+
+import Control.Monad.Except (throwError, class MonadError)
+import Control.Monad.Logger (class MonadLogger, log)
+import Control.Monad.Reader (class MonadReader)
+import Control.Monad.State (class MonadState, gets)
+import Data.Foldable (traverse_)
+import Data.Lens (view, (.=))
+import Data.Lens.At (at)
+import Data.List (List)
+import Data.Map (Map)
+import Data.Map as Map
+import Data.Maybe (Maybe(..))
+import Data.Newtype (unwrap)
+import Data.Tuple.Nested ((/\))
+import Ripplat.Common (Error(..), Log, makeError, makeLog)
 
 type Ctx = {}
 
 type Env =
-  { tyDefs :: List TyDef
-  , latDefs :: List LatDef
-  , propDefs :: List PropDef
+  { tyDefs :: Map TyName TyDef
+  , latDefs :: Map LatName LatDef
+  , propDefs :: Map PropName PropDef
   }
 
-newEnv :: {} -> Env
-newEnv {} =
-  { tyDefs: mempty
-  , latDefs: mempty
-  , propDefs: mempty
+makeEnv :: {} -> Env
+makeEnv {} =
+  { tyDefs: Map.empty
+  , latDefs: Map.empty
+  , propDefs: Map.empty
   }
+
+normalizeTy
+  :: forall m
+   . MonadLogger Log m
+  => MonadError Error m
+  => MonadReader Ctx m
+  => MonadState Env m
+  => WeirdTy
+  -> m Ty
+normalizeTy (RefTy x) = gets (view (prop' @"tyDefs" <<< at x)) >>= case _ of
+  Nothing -> throwError $ makeError [ "typecheck" ] $ "Unknown reference to type of the name \"" <> unwrap x <> "\""
+  Just (TyDef td) -> normalizeTy td.ty
+normalizeTy UnitTy = pure UnitTy
+normalizeTy BoolTy = pure BoolTy
+
+normalizeLat
+  :: forall m
+   . MonadLogger Log m
+  => MonadError Error m
+  => MonadReader Ctx m
+  => MonadState Env m
+  => WeirdLat
+  -> m Lat
+normalizeLat (RefLat x) = gets (view (prop' @"latDefs" <<< at x)) >>= case _ of
+  Nothing -> throwError $ makeError [ "typecheck" ] $ "Unknown reference to lattice of the name \"" <> unwrap x <> "\""
+  Just (LatDef ld) -> normalizeLat ld.lat
+normalizeLat UnitLat = pure UnitLat
+normalizeLat BoolLat = pure BoolLat
 
 typecheckModule
   :: forall m
    . MonadLogger Log m
+  => MonadError Error m
   => MonadReader Ctx m
   => MonadState Env m
   => Module
   -> m Unit
 typecheckModule (Module mdl) = do
-  prop' @"tyDefs" .= mdl.tyDefs
-  prop' @"latDefs" .= mdl.latDefs
-  prop' @"propDefs" .= mdl.propDefs
+  prop' @"tyDefs" .= (mdl.tyDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable)
+  prop' @"latDefs" .= (mdl.latDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable)
+  prop' @"propDefs" .= (mdl.propDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable)
 
   typecheckTyDef `traverse_` mdl.tyDefs
   typecheckLatDef `traverse_` mdl.latDefs
@@ -53,7 +89,9 @@ typecheckTyDef
   => MonadState Env m
   => TyDef
   -> m Unit
-typecheckTyDef = todo "typecheckTyDef"
+typecheckTyDef (TyDef td) = do
+  log $ makeLog [ "typecheck" ] $ unwrap td.name
+  pure unit
 
 typecheckLatDef
   :: forall m
@@ -62,7 +100,9 @@ typecheckLatDef
   => MonadState Env m
   => LatDef
   -> m Unit
-typecheckLatDef = todo "typecheckLatDef"
+typecheckLatDef (LatDef ld) = do
+  log $ makeLog [ "typecheck" ] $ unwrap ld.name
+  todo "typecheckLatDef"
 
 typecheckPropDef
   :: forall m
@@ -71,7 +111,9 @@ typecheckPropDef
   => MonadState Env m
   => PropDef
   -> m Unit
-typecheckPropDef = todo "typecheckPropDef"
+typecheckPropDef (PropDef pd) = do
+  log $ makeLog [ "typecheck" ] $ unwrap pd.name
+  todo "typecheckPropDef"
 
 typecheckRuleDef
   :: forall m
@@ -80,5 +122,7 @@ typecheckRuleDef
   => MonadState Env m
   => RuleDef
   -> m Unit
-typecheckRuleDef = todo "typecheckRuleDef"
+typecheckRuleDef (RuleDef rd) = do
+  log $ makeLog [ "typecheck" ] $ unwrap (rd.rule # unwrap).name
+  todo "typecheckRuleDef"
 

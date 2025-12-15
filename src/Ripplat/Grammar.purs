@@ -7,6 +7,7 @@ import Data.Generic.Rep (class Generic)
 import Data.List (List)
 import Data.Newtype (class Newtype)
 import Data.Show.Generic (genericShow)
+import Data.UUID (UUID)
 
 --------------------------------------------------------------------------------
 
@@ -82,8 +83,8 @@ instance Eq LatDef where
 
 data Rule = Rule
   { name :: RuleName
-  , hyps :: List Prop
-  , conc :: Prop
+  , hyps :: List RuleProp
+  , conc :: RuleProp
   }
 
 derive instance Generic Rule _
@@ -94,17 +95,20 @@ instance Show Rule where
 instance Eq Rule where
   eq x = genericEq x
 
-data Prop = Prop
+data Prop' id = Prop
   { name :: PropName
-  , args :: List Tm
+  , args :: List (Tm' id)
   }
 
-derive instance Generic Prop _
+type RuleProp = Prop' RuleId
+type Prop = Prop' Id
 
-instance Show Prop where
+derive instance Generic (Prop' id) _
+
+instance Show id => Show (Prop' id) where
   show x = genericShow x
 
-instance Eq Prop where
+instance Eq id => Eq (Prop' id) where
   eq x = genericEq x
 
 data Ty = RefTy TyName
@@ -127,15 +131,35 @@ instance Show Lat where
 instance Eq Lat where
   eq x = genericEq x
 
-data Tm = RefTm TmName
+data Tm' id
+  = VarTm' (Var' id)
 
-derive instance Generic Tm _
+type RuleTm = Tm' RuleId
+type Tm = Tm' Id
 
-instance Show Tm where
+derive instance Generic (Tm' id) _
+
+instance Show id => Show (Tm' id) where
   show x = genericShow x
 
-instance Eq Tm where
+instance Eq id => Eq (Tm' id) where
   eq x = genericEq x
+
+data Var' id = Var String id
+
+type RuleVar = Var' RuleId
+type Var = Var' Id
+
+derive instance Generic (Var' id) _
+
+instance Show id => Show (Var' id) where
+  show x = genericShow x
+
+instance Eq id => Eq (Var' id) where
+  eq x = genericEq x
+
+type RuleId = Unit
+type Id = UUID
 
 --------------------------------------------------------------------------------
 

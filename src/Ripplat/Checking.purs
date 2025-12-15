@@ -84,6 +84,8 @@ normalizeLat (AppLat x ls) = do
 normalizeLat UnitLat = pure UnitLat
 normalizeLat BoolLat = pure BoolLat
 
+--------------------------------------------------------------------------------
+
 checkModule
   :: forall m
    . MonadLogger Log m
@@ -94,18 +96,22 @@ checkModule
   => Module
   -> m Unit
 checkModule (Module mdl) = do
+  log $ makeLog [ "check" ] $ "module " <> unwrap mdl.name
+
   prop' @"tyDefs" .= (mdl.tyDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable)
   prop' @"latDefs" .= (mdl.latDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable)
   prop' @"propDefs" .= (mdl.propDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable)
 
-  checkTyDef `traverse_` mdl.tyDefs
-  checkLatDef `traverse_` mdl.latDefs
+  checkWeirdTyDef `traverse_` mdl.tyDefs
+  checkWeirdLatDef `traverse_` mdl.latDefs
   checkPropDef `traverse_` mdl.propDefs
   checkRuleDef `traverse_` mdl.ruleDefs
 
   pure unit
 
-checkTyDef
+--------------------------------------------------------------------------------
+
+checkWeirdTyDef
   :: forall m
    . MonadLogger Log m
   => MonadReader Ctx m
@@ -114,34 +120,11 @@ checkTyDef
   => MonadError Error m
   => TyDef
   -> m Unit
-checkTyDef (TyDef td) = do
-  log $ makeLog [ "check" ] $ unwrap td.name
-  checkTy td.ty
-  pure unit
+checkWeirdTyDef (TyDef td) = do
+  log $ makeLog [ "check" ] $ "type " <> unwrap td.name
+  checkWeirdTy td.ty
 
-checkTy
-  :: forall m
-   . MonadLogger Log m
-  => MonadReader Ctx m
-  => MonadState Env m
-  => MonadWriter (Array CheckError) m
-  => MonadError Error m
-  => WeirdTy
-  -> m Unit
-checkTy t0@(AppTy x ts) = do
-  result <- gets $ view $ prop' @"tyDefs" <<< at x
-  case result of
-    Nothing -> tell [ makeCheckError "type_ref" (pretty t0) $ "Unknown reference to type " <> pretty x <> "." ]
-    Just td -> do
-      let expectedArity = tyArity td
-      let actualArity = length ts
-      unless (expectedArity == actualArity) do
-        tell [ makeCheckError "type_arity" (pretty t0) $ "The type family " <> pretty x <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
-      checkTy `traverse_` ts
-checkTy UnitTy = pure unit
-checkTy BoolTy = pure unit
-
-checkLatDef
+checkWeirdLatDef
   :: forall m
    . MonadLogger Log m
   => MonadReader Ctx m
@@ -150,32 +133,10 @@ checkLatDef
   => MonadError Error m
   => LatDef
   -> m Unit
-checkLatDef (LatDef ld) = do
-  log $ makeLog [ "check" ] $ unwrap ld.name
-  checkLat ld.lat
+checkWeirdLatDef (LatDef ld) = do
+  log $ makeLog [ "check" ] $ "lattice " <> unwrap ld.name
+  checkWeirdLat ld.lat
   pure unit
-
-checkLat
-  :: forall m
-   . MonadLogger Log m
-  => MonadReader Ctx m
-  => MonadState Env m
-  => MonadWriter (Array CheckError) m
-  => MonadError Error m
-  => WeirdLat
-  -> m Unit
-checkLat t0@(AppLat x ts) = do
-  result <- gets $ view $ prop' @"latDefs" <<< at x
-  case result of
-    Nothing -> tell [ makeCheckError "lattice_ref" (pretty t0) $ "Unknown reference to lattice " <> pretty x <> "." ]
-    Just ld -> do
-      let expectedArity = latArity ld
-      let actualArity = length ts
-      unless (expectedArity == actualArity) do
-        tell [ makeCheckError "lattice_arity" (pretty t0) $ "The lattice family " <> pretty x <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
-      checkLat `traverse_` ts
-checkLat UnitLat = pure unit
-checkLat BoolLat = pure unit
 
 checkPropDef
   :: forall m
@@ -187,8 +148,8 @@ checkPropDef
   => PropDef
   -> m Unit
 checkPropDef (PropDef pd) = do
-  log $ makeLog [ "check" ] $ unwrap pd.name
-  todo "checkPropDef"
+  log $ makeLog [ "check" ] $ "prop " <> unwrap pd.name
+  checkWeirdLat `traverse_` pd.params
 
 checkRuleDef
   :: forall m
@@ -200,6 +161,75 @@ checkRuleDef
   => RuleDef
   -> m Unit
 checkRuleDef (RuleDef rd) = do
-  log $ makeLog [ "check" ] $ unwrap (rd.rule # unwrap).name
-  todo "checkRuleDef"
+  log $ makeLog [ "check" ] $ "rule (def) " <> unwrap (unwrap rd.rule).name
+  checkRule rd.rule
 
+checkRule
+  :: forall m
+   . MonadLogger Log m
+  => MonadReader Ctx m
+  => MonadState Env m
+  => MonadWriter (Array CheckError) m
+  => MonadError Error m
+  => Rule
+  -> m Unit
+checkRule (Rule r) = do
+  log $ makeLog [ "check" ] $ "rule " <> unwrap r.name
+  checkProp `traverse_` r.hyps
+  checkProp r.conc
+
+checkWeirdTy
+  :: forall m
+   . MonadLogger Log m
+  => MonadReader Ctx m
+  => MonadState Env m
+  => MonadWriter (Array CheckError) m
+  => MonadError Error m
+  => WeirdTy
+  -> m Unit
+checkWeirdTy t0@(AppTy x ts) = do
+  result <- gets $ view $ prop' @"tyDefs" <<< at x
+  case result of
+    Nothing -> tell [ makeCheckError "type_ref" (pretty t0) $ "Unknown reference to type " <> pretty x <> "." ]
+    Just td -> do
+      let expectedArity = tyArity td
+      let actualArity = length ts
+      unless (expectedArity == actualArity) do
+        tell [ makeCheckError "type_arity" (pretty t0) $ "The type family " <> pretty x <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
+      checkWeirdTy `traverse_` ts
+checkWeirdTy UnitTy = pure unit
+checkWeirdTy BoolTy = pure unit
+
+checkWeirdLat
+  :: forall m
+   . MonadLogger Log m
+  => MonadReader Ctx m
+  => MonadState Env m
+  => MonadWriter (Array CheckError) m
+  => MonadError Error m
+  => WeirdLat
+  -> m Unit
+checkWeirdLat t0@(AppLat x ts) = do
+  result <- gets $ view $ prop' @"latDefs" <<< at x
+  case result of
+    Nothing -> tell [ makeCheckError "lattice_ref" (pretty t0) $ "Unknown reference to lattice " <> pretty x <> "." ]
+    Just ld -> do
+      let expectedArity = latArity ld
+      let actualArity = length ts
+      unless (expectedArity == actualArity) do
+        tell [ makeCheckError "lattice_arity" (pretty t0) $ "The lattice family " <> pretty x <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
+      checkWeirdLat `traverse_` ts
+checkWeirdLat UnitLat = pure unit
+checkWeirdLat BoolLat = pure unit
+
+-- TODO: this should work for any `id` type since i just dont do anything in that case?? or i should actually keep track of a mapping of what the inferred types are of each of the uses of a variable? 
+checkProp
+  :: forall m id
+   . MonadLogger Log m
+  => MonadReader Ctx m
+  => MonadState Env m
+  => MonadWriter (Array CheckError) m
+  => MonadError Error m
+  => Prop id
+  -> m Unit
+checkProp prop = todo "checkProp"

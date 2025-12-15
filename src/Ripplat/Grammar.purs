@@ -5,11 +5,8 @@ import Prelude
 import Data.Eq.Generic (genericEq)
 import Data.Foldable (length)
 import Data.Generic.Rep (class Generic)
-import Data.Map as Map
 import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
-import Data.String (joinWith)
-import Data.UUID (UUID)
 import Options.Applicative.Internal.Utils (unLines)
 import Text.Pretty (class Pretty, commas, indent, pretty, unLines2)
 
@@ -42,7 +39,7 @@ instance Pretty Module where
 
 newtype PropDef = PropDef
   { name :: PropName
-  , params :: Array WeirdTy
+  , params :: Array WeirdLat
   }
 
 derive instance Newtype PropDef _

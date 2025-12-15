@@ -6,6 +6,7 @@ import Data.Eq.Generic (genericEq)
 import Data.Generic.Rep (class Generic)
 import Data.List (List)
 import Data.Newtype (class Newtype)
+import Data.Ord.Generic (genericCompare)
 import Data.Show.Generic (genericShow)
 import Data.UUID (UUID)
 
@@ -111,28 +112,43 @@ instance Show id => Show (Prop' id) where
 instance Eq id => Eq (Prop' id) where
   eq x = genericEq x
 
-data Ty = RefTy TyName
+data Ty' name
+  = RefTy name
+  | UnitTy
+  | BoolTy
 
-derive instance Generic Ty _
+type WeirdTy = Ty' TyName
+type Ty = Ty' Void
 
-instance Show Ty where
+derive instance Generic (Ty' name) _
+
+instance Show name => Show (Ty' name) where
   show x = genericShow x
 
-instance Eq Ty where
+instance Eq name => Eq (Ty' name) where
   eq x = genericEq x
 
-data Lat = RefLat LatName
+data Lat' name
+  = RefLat name
+  | UnitLat
+  -- | False < True
+  | BoolLat
 
-derive instance Generic Lat _
+type WeirdLat = Lat' LatName
+type Lat = Lat' Void
 
-instance Show Lat where
+derive instance Generic (Lat' name) _
+
+instance Show name => Show (Lat' name) where
   show x = genericShow x
 
-instance Eq Lat where
+instance Eq name => Eq (Lat' name) where
   eq x = genericEq x
 
 data Tm' id
-  = VarTm' (Var' id)
+  = VarTm (Var' id)
+  | UnitTm
+  | BoolTm Boolean
 
 type RuleTm = Tm' RuleId
 type Tm = Tm' Id
@@ -157,6 +173,9 @@ instance Show id => Show (Var' id) where
 
 instance Eq id => Eq (Var' id) where
   eq x = genericEq x
+
+instance Ord id => Ord (Var' id) where
+  compare x = genericCompare x
 
 type RuleId = Unit
 type Id = UUID
@@ -204,4 +223,11 @@ derive instance Newtype TmName _
 derive newtype instance Show TmName
 derive newtype instance Eq TmName
 derive newtype instance Ord TmName
+
+--------------------------------------------------------------------------------
+
+fromLatToTy :: Lat -> Ty
+fromLatToTy (RefLat x) = absurd x
+fromLatToTy UnitLat = UnitTy
+fromLatToTy BoolLat = BoolTy
 

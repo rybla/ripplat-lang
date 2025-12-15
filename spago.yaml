@@ -1,0 +1,50 @@
+package:
+  name: ripplat-lang
+  dependencies:
+    - console
+    - effect
+    - prelude
+    - transformers
+    - halogen
+    - profunctor-lenses
+    - aff
+    - aff-promise
+    - argonaut
+    - argonaut-codecs
+    - argonaut-core
+    - argonaut-generic
+    - arrays
+    - bifunctors
+    - console
+    - debug
+    - either
+    - foldable-traversable
+    - functors
+    - fuzzy
+    - lists
+    - lazy
+    - integers
+    - maybe
+    - newtype
+    - nonempty
+    - ordered-collections
+    - partial
+    - record
+    - refs
+    - strings
+    - tuples
+    - unfoldable
+    - unicode
+    - uuid
+    - variant
+    - web-dom
+    - web-events
+    - web-html
+    - web-uievents
+  test:
+    main: Test.Main
+    dependencies: []
+workspace:
+  packageSet:
+    registry: 68.8.1
+  extraPackages: {}

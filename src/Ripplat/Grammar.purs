@@ -12,6 +12,8 @@ import Text.Pretty (class Pretty, commas, indent, pretty, unLines2)
 
 --------------------------------------------------------------------------------
 
+-- TODO: also have TmDef (with params)
+
 newtype Module = Module
   { name :: ModuleName
   , tyDefs :: Array TyDef

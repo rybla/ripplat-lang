@@ -7,6 +7,7 @@ import Utility
 
 import Control.Monad.Except (throwError, class MonadError)
 import Control.Monad.Logger (class MonadLogger, log)
+import Control.Monad.RWS (RWST)
 import Control.Monad.Reader (class MonadReader)
 import Control.Monad.State (class MonadState, StateT, execStateT, gets)
 import Control.Monad.Writer (class MonadWriter, tell)
@@ -26,6 +27,8 @@ import Options.Applicative.Internal.Utils (unLines)
 import Text.Pretty (class Pretty, indent, pretty, quoteCode)
 
 --------------------------------------------------------------------------------
+
+type T = RWST Ctx (Array CheckError) Env
 
 type Ctx = {}
 
@@ -69,11 +72,8 @@ normalizeTy
   :: forall m
    . MonadLogger Log m
   => MonadError (Array Error) m
-  => MonadReader Ctx m
-  => MonadState Env m
-  => MonadWriter (Array CheckError) m
   => WeirdTy
-  -> m NormTy
+  -> T m NormTy
 normalizeTy (AppTy x _ts) = do
   result <- gets $ view $ prop' @"tyDefs" <<< at x
   case result of
@@ -86,11 +86,8 @@ normalizeLatTy
   :: forall m
    . MonadLogger Log m
   => MonadError (Array Error) m
-  => MonadReader Ctx m
-  => MonadState Env m
-  => MonadWriter (Array CheckError) m
   => WeirdLat
-  -> m NormLat
+  -> T m NormLat
 normalizeLatTy (AppTy x _ts) = do
   result <- gets $ view $ prop' @"latDefs" <<< at x
   case result of
@@ -105,11 +102,8 @@ checkModule
   :: forall m
    . MonadLogger Log m
   => MonadError (Array Error) m
-  => MonadReader Ctx m
-  => MonadState Env m
-  => MonadWriter (Array CheckError) m
   => Module
-  -> m Unit
+  -> T m Unit
 checkModule (Module mdl) = do
   log $ newLog [ "check" ] $ "module " <> unwrap mdl.name
 
@@ -129,12 +123,9 @@ checkModule (Module mdl) = do
 checkWeirdTyDef
   :: forall m
    . MonadLogger Log m
-  => MonadReader Ctx m
-  => MonadState Env m
-  => MonadWriter (Array CheckError) m
   => MonadError (Array Error) m
   => TyDef
-  -> m Unit
+  -> T m Unit
 checkWeirdTyDef (TyDef td) = do
   log $ newLog [ "check" ] $ "type " <> unwrap td.name
   checkWeirdTy td.ty
@@ -142,12 +133,9 @@ checkWeirdTyDef (TyDef td) = do
 checkWeirdLatTyDef
   :: forall m
    . MonadLogger Log m
-  => MonadReader Ctx m
-  => MonadState Env m
-  => MonadWriter (Array CheckError) m
   => MonadError (Array Error) m
   => LatDef
-  -> m Unit
+  -> T m Unit
 checkWeirdLatTyDef (LatDef ld) = do
   log $ newLog [ "check" ] $ "lattice " <> unwrap ld.name
   checkWeirdLatTy ld.lat
@@ -156,12 +144,9 @@ checkWeirdLatTyDef (LatDef ld) = do
 checkPropDef
   :: forall m
    . MonadLogger Log m
-  => MonadReader Ctx m
-  => MonadState Env m
-  => MonadWriter (Array CheckError) m
   => MonadError (Array Error) m
   => PropDef
-  -> m Unit
+  -> T m Unit
 checkPropDef (PropDef pd) = do
   log $ newLog [ "check" ] $ "prop " <> unwrap pd.name
   checkWeirdLatTy `traverse_` pd.params
@@ -169,12 +154,9 @@ checkPropDef (PropDef pd) = do
 checkRuleDef
   :: forall m
    . MonadLogger Log m
-  => MonadReader Ctx m
-  => MonadState Env m
-  => MonadWriter (Array CheckError) m
   => MonadError (Array Error) m
   => RuleDef
-  -> m Unit
+  -> T m Unit
 checkRuleDef (RuleDef rd) = do
   log $ newLog [ "check" ] $ "rule (def) " <> unwrap (unwrap rd.rule).name
   checkRule rd.rule
@@ -182,12 +164,9 @@ checkRuleDef (RuleDef rd) = do
 checkRule
   :: forall m
    . MonadLogger Log m
-  => MonadReader Ctx m
-  => MonadState Env m
-  => MonadWriter (Array CheckError) m
   => MonadError (Array Error) m
   => Rule
-  -> m Unit
+  -> T m Unit
 checkRule (Rule r) = do
   log $ newLog [ "check" ] $ "rule " <> unwrap r.name
   checkColdProp `traverse_` r.hyps
@@ -196,12 +175,9 @@ checkRule (Rule r) = do
 checkWeirdTy
   :: forall m
    . MonadLogger Log m
-  => MonadReader Ctx m
-  => MonadState Env m
-  => MonadWriter (Array CheckError) m
   => MonadError (Array Error) m
   => WeirdTy
-  -> m Unit
+  -> T m Unit
 checkWeirdTy t0@(AppTy x ts) = do
   result <- gets $ view $ prop' @"tyDefs" <<< at x
   case result of
@@ -218,12 +194,9 @@ checkWeirdTy (BoolTy _) = pure unit
 checkWeirdLatTy
   :: forall m
    . MonadLogger Log m
-  => MonadReader Ctx m
-  => MonadState Env m
-  => MonadWriter (Array CheckError) m
   => MonadError (Array Error) m
   => WeirdLat
-  -> m Unit
+  -> T m Unit
 checkWeirdLatTy t0@(AppTy x ts) = do
   result <- gets $ view $ prop' @"latDefs" <<< at x
   case result of
@@ -240,12 +213,9 @@ checkWeirdLatTy (BoolTy _) = pure unit
 checkColdProp
   :: forall m
    . MonadLogger Log m
-  => MonadReader Ctx m
-  => MonadState Env m
-  => MonadWriter (Array CheckError) m
   => MonadError (Array Error) m
   => ColdProp
-  -> m Unit
+  -> T m Unit
 checkColdProp p0@(Prop p) = do
   result <- gets $ view $ prop' @"propDefs" <<< at p.name
   case result of
@@ -263,19 +233,17 @@ checkColdProp p0@(Prop p) = do
 checkColdTerm
   :: forall m lat
    . MonadLogger Log m
-  => MonadReader Ctx m
-  => MonadState Env m
-  => MonadWriter (Array CheckError) m
   => MonadError (Array Error) m
   => Eq lat
   => Pretty lat
   => NormTy' lat
   -> ColdTm
-  -> StateT (Map ColdVar (NormTy' lat)) m Unit
+  -> StateT (Map ColdVar (NormTy' lat)) (T m) Unit
+-- ensure that all uses of a variable are at the same lattice
 checkColdTerm s t0@(VarTm x) = do
   result <- gets $ view $ at x
   case result of
-    Nothing -> tell [ newCheckError "unknown_var" (pretty t0) $ "Reference to unknown variable " <> quoteCode (pretty x) <> "." ]
+    Nothing -> at x .= pure s
     Just s' -> do
       unless (s == s') do
         tell [ newCheckError "term_lattice" (pretty t0) $ "The variable " <> quoteCode (pretty t0) <> " was expected to have lattice " <> quoteCode (pretty s) <> " but it was inferred to have type " <> quoteCode (pretty s') <> " in context." ]

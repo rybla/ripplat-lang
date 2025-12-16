@@ -7,6 +7,7 @@ import Ripplat.Grammr
 import Test.Spec
 
 import Control.Monad.Except (class MonadError, throwError)
+import Control.Monad.RWS (RWSResult(..), runRWST)
 import Control.Monad.Reader (runReaderT)
 import Control.Monad.State (evalStateT)
 import Control.Monad.Writer (execWriterT)
@@ -14,6 +15,7 @@ import Data.Foldable (null)
 import Data.Newtype (wrap)
 import Effect.Exception as Exception
 import Test.Common as Common
+import Utility (todo)
 
 spec :: Spec Unit
 spec = describe "Checking" do
@@ -89,14 +91,11 @@ newSuccessTest
    . MonadError Exception.Error m
   => Module
   -> m Unit
-newSuccessTest mdl = Common.newSuccessTest do
-  chErrs <- checkModule mdl
-    # (_ `evalStateT` newEnv {})
-    # (_ `runReaderT` newCtx {})
-    # execWriterT
+newSuccessTest md = Common.newSuccessTest do
+  RWSResult _ _ errs <- runRWST (checkModule md) (newCtx {}) (newEnv {})
 
-  unless (null chErrs) do
-    throwError $ map (toError [ "check" ]) chErrs
+  unless (null errs) do
+    throwError $ map (toError [ "check" ]) errs
 
   pure unit
 
@@ -105,13 +104,10 @@ newFailureTest
    . MonadError Exception.Error m
   => Module
   -> m Unit
-newFailureTest mdl = Common.newSuccessTest do
-  chErrs <- checkModule mdl
-    # (_ `evalStateT` newEnv {})
-    # (_ `runReaderT` newCtx {})
-    # execWriterT
+newFailureTest md = Common.newSuccessTest do
+  RWSResult _ _ errs <- runRWST (checkModule md) (newCtx {}) (newEnv {})
 
-  when (null chErrs) do
+  when (null errs) do
     throwError $ [ newError [ "check" ] "Expected errors" ]
 
   pure unit

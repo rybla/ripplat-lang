@@ -29,8 +29,8 @@ import Text.Pretty (class Pretty, indent, pretty)
 
 type Ctx = {}
 
-makeCtx :: {} -> Ctx
-makeCtx _args =
+newCtx :: {} -> Ctx
+newCtx _args =
   {}
 
 type Env =
@@ -39,8 +39,8 @@ type Env =
   , propDefs :: Map PropName PropDef
   }
 
-makeEnv :: {} -> Env
-makeEnv _args =
+newEnv :: {} -> Env
+newEnv _args =
   { tyDefs: empty
   , latDefs: empty
   , propDefs: empty
@@ -52,7 +52,7 @@ newtype CheckError = CheckError
   , msg :: String
   }
 
-makeCheckError label source msg = CheckError { label, source, msg }
+newCheckError label source msg = CheckError { label, source, msg }
 
 derive instance Newtype CheckError _
 
@@ -77,7 +77,7 @@ normalizeTy
 normalizeTy (AppTy x _ts) = do
   result <- gets $ view $ prop' @"tyDefs" <<< at x
   case result of
-    Nothing -> throwError $ pure $ newError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\""
+    Nothing -> throwError [ newError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\"" ]
     Just (TyDef td) -> normalizeTy td.ty -- TODO: actually need to do substituion of args for params here
 normalizeTy (UnitTy l) = pure $ UnitTy l
 normalizeTy (BoolTy l) = pure $ BoolTy l
@@ -94,7 +94,7 @@ normalizeLatTy
 normalizeLatTy (AppTy x _ts) = do
   result <- gets $ view $ prop' @"latDefs" <<< at x
   case result of
-    Nothing -> throwError $ pure $ newError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\""
+    Nothing -> throwError [ newError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\"" ]
     Just (LatDef ld) -> normalizeLatTy ld.lat -- TODO: actually need to do substituion of args for params here
 normalizeLatTy (UnitTy l) = pure $ UnitTy l
 normalizeLatTy (BoolTy l) = pure $ BoolTy l
@@ -205,12 +205,12 @@ checkWeirdTy
 checkWeirdTy t0@(AppTy x ts) = do
   result <- gets $ view $ prop' @"tyDefs" <<< at x
   case result of
-    Nothing -> tell [ makeCheckError "unknown_type" (pretty t0) $ "Reference to unknown type " <> pretty x <> "." ]
+    Nothing -> tell [ newCheckError "unknown_type" (pretty t0) $ "Reference to unknown type " <> pretty x <> "." ]
     Just td -> do
       let expectedArity = tyArity td
       let actualArity = length ts
       unless (expectedArity == actualArity) do
-        tell [ makeCheckError "type_arity" (pretty t0) $ "The type family " <> pretty x <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
+        tell [ newCheckError "type_arity" (pretty t0) $ "The type family " <> pretty x <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
       checkWeirdTy `traverse_` ts
 checkWeirdTy (UnitTy _) = pure unit
 checkWeirdTy (BoolTy _) = pure unit
@@ -227,12 +227,12 @@ checkWeirdLatTy
 checkWeirdLatTy t0@(AppTy x ts) = do
   result <- gets $ view $ prop' @"latDefs" <<< at x
   case result of
-    Nothing -> tell [ makeCheckError "unknown_lattice" (pretty t0) $ "Reference to unknown lattice " <> pretty x <> "." ]
+    Nothing -> tell [ newCheckError "unknown_lattice" (pretty t0) $ "Reference to unknown lattice " <> pretty x <> "." ]
     Just ld -> do
       let expectedArity = latArity ld
       let actualArity = length ts
       unless (expectedArity == actualArity) do
-        tell [ makeCheckError "lattice_arity" (pretty t0) $ "The lattice family " <> pretty x <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
+        tell [ newCheckError "lattice_arity" (pretty t0) $ "The lattice family " <> pretty x <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
       checkWeirdLatTy `traverse_` ts
 checkWeirdLatTy (UnitTy _) = pure unit
 checkWeirdLatTy (BoolTy _) = pure unit
@@ -249,12 +249,12 @@ checkColdProp
 checkColdProp p0@(Prop p) = do
   result <- gets $ view $ prop' @"propDefs" <<< at p.name
   case result of
-    Nothing -> tell [ makeCheckError "unknown_prop" (pretty p0) $ "Reference to unknown proposition " <> pretty p.name <> "." ]
+    Nothing -> tell [ newCheckError "unknown_prop" (pretty p0) $ "Reference to unknown proposition " <> pretty p.name <> "." ]
     Just (PropDef pd) -> do
       let expectedArity = PropDef pd # propArity
       let actualArity = p.args # length
       unless (expectedArity == actualArity) do
-        tell [ makeCheckError "prop_arity" (pretty p0) $ "The proposition " <> pretty p.name <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
+        tell [ newCheckError "prop_arity" (pretty p0) $ "The proposition " <> pretty p.name <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
       doms <- normalizeLatTy `traverse` pd.params
       _sigma <- flip execStateT empty do
         uncurry checkColdTerm `traverse_` (doms `Array.zip` p.args)
@@ -275,10 +275,10 @@ checkColdTerm
 checkColdTerm s t0@(VarTm x) = do
   result <- gets $ view $ at x
   case result of
-    Nothing -> tell [ makeCheckError "unknown_var" (pretty t0) $ "Reference to unknown variable " <> pretty x <> "." ]
+    Nothing -> tell [ newCheckError "unknown_var" (pretty t0) $ "Reference to unknown variable " <> pretty x <> "." ]
     Just s' -> do
       unless (s == s') do
-        tell [ makeCheckError "term_type" (pretty t0) $ "The variable " <> pretty t0 <> " was expected to have type " <> pretty s <> " but it was inferred to have type " <> pretty s' <> " in context." ]
+        tell [ newCheckError "term_type" (pretty t0) $ "The variable " <> pretty t0 <> " was expected to have type " <> pretty s <> " but it was inferred to have type " <> pretty s' <> " in context." ]
 checkColdTerm (UnitTy _) UnitTm = pure unit
 checkColdTerm (BoolTy _) (BoolTm _) = pure unit
-checkColdTerm s t = throwError $ pure $ newError [ "check" ] $ "The term " <> pretty t <> " does not satisfy the type " <> pretty s
+checkColdTerm s t = throwError [ newError [ "check" ] $ "The term " <> pretty t <> " does not satisfy the type " <> pretty s ]

@@ -27,8 +27,8 @@ main pf mdl = do
   -- checking
 
   chErrs <- Checking.checkModule mdl
-    # (_ `evalStateT` Checking.makeEnv {})
-    # (_ `runReaderT` Checking.makeCtx {})
+    # (_ `evalStateT` Checking.newEnv {})
+    # (_ `runReaderT` Checking.newCtx {})
     # execWriterT
 
   unless (null chErrs) do

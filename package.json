@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "purescript": "^0.15.16-8",
-    "spago": "^0.93.45"
+    "spago": "^0.93.45",
+    "uuid": "^13.0.0"
   }
 }

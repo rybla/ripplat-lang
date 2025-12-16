@@ -15,10 +15,10 @@ derive instance Generic Log _
 instance Show Log where
   show (Log l) = "[" <> (l.path # joinWith ".") <> "] " <> l.msg
 
-makeLog path msg = Log { path, msg }
+newLog path msg = Log { path, msg }
 
 data Error = Error
-  { path :: Array String
+  { path :: ErrorPath
   , msg :: String
   }
 
@@ -27,5 +27,12 @@ derive instance Generic Error _
 instance Show Error where
   show (Error l) = "[" <> (l.path # joinWith ".") <> "] " <> l.msg
 
-makeError path msg = Error { path, msg }
+type ErrorPath = Array String
+
+newError path msg = Error { path, msg }
+
+class ToError a where
+  toErrorMsg :: a -> String
+
+toError path a = newError path (toErrorMsg a)
 

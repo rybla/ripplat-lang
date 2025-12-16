@@ -3,6 +3,7 @@ module Ripplat.Checking where
 import Prelude
 import Ripplat.Grammr
 import Utility
+import Ripplat.Common
 
 import Control.Monad.Except (throwError, class MonadError)
 import Control.Monad.Logger (class MonadLogger, log)
@@ -21,12 +22,16 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.Traversable (traverse)
 import Data.Tuple (uncurry)
 import Data.Tuple.Nested ((/\))
-import Ripplat.Common (Error, Log, makeError, makeLog)
-import Text.Pretty (class Pretty, pretty)
+import Options.Applicative.Internal.Utils (unLines)
+import Text.Pretty (class Pretty, indent, pretty)
 
 --------------------------------------------------------------------------------
 
 type Ctx = {}
+
+makeCtx :: {} -> Ctx
+makeCtx _args =
+  {}
 
 type Env =
   { tyDefs :: Map TyName TyDef
@@ -35,7 +40,7 @@ type Env =
   }
 
 makeEnv :: {} -> Env
-makeEnv {} =
+makeEnv _args =
   { tyDefs: empty
   , latDefs: empty
   , propDefs: empty
@@ -51,21 +56,28 @@ makeCheckError label source msg = CheckError { label, source, msg }
 
 derive instance Newtype CheckError _
 
+instance ToError CheckError where
+  toErrorMsg (CheckError ce) =
+    unLines
+      [ "checking error ()" <> ce.label <> ") at " <> ce.source <> ":"
+      , indent ce.msg
+      ]
+
 --------------------------------------------------------------------------------
 
 normalizeTy
   :: forall m
    . MonadLogger Log m
-  => MonadError Error m
+  => MonadError (Array Error) m
   => MonadReader Ctx m
   => MonadState Env m
   => MonadWriter (Array CheckError) m
   => WeirdTy
   -> m NormTy
-normalizeTy (AppTy x ts) = do
+normalizeTy (AppTy x _ts) = do
   result <- gets $ view $ prop' @"tyDefs" <<< at x
   case result of
-    Nothing -> throwError $ makeError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\""
+    Nothing -> throwError $ pure $ newError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\""
     Just (TyDef td) -> normalizeTy td.ty -- TODO: actually need to do substituion of args for params here
 normalizeTy (UnitTy l) = pure $ UnitTy l
 normalizeTy (BoolTy l) = pure $ BoolTy l
@@ -73,16 +85,16 @@ normalizeTy (BoolTy l) = pure $ BoolTy l
 normalizeLatTy
   :: forall m
    . MonadLogger Log m
-  => MonadError Error m
+  => MonadError (Array Error) m
   => MonadReader Ctx m
   => MonadState Env m
   => MonadWriter (Array CheckError) m
   => WeirdLat
   -> m NormLat
-normalizeLatTy (AppTy x ts) = do
+normalizeLatTy (AppTy x _ts) = do
   result <- gets $ view $ prop' @"latDefs" <<< at x
   case result of
-    Nothing -> throwError $ makeError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\""
+    Nothing -> throwError $ pure $ newError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\""
     Just (LatDef ld) -> normalizeLatTy ld.lat -- TODO: actually need to do substituion of args for params here
 normalizeLatTy (UnitTy l) = pure $ UnitTy l
 normalizeLatTy (BoolTy l) = pure $ BoolTy l
@@ -92,14 +104,14 @@ normalizeLatTy (BoolTy l) = pure $ BoolTy l
 checkModule
   :: forall m
    . MonadLogger Log m
-  => MonadError Error m
+  => MonadError (Array Error) m
   => MonadReader Ctx m
   => MonadState Env m
   => MonadWriter (Array CheckError) m
   => Module
   -> m Unit
 checkModule (Module mdl) = do
-  log $ makeLog [ "check" ] $ "module " <> unwrap mdl.name
+  log $ newLog [ "check" ] $ "module " <> unwrap mdl.name
 
   prop' @"tyDefs" .= (mdl.tyDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable)
   prop' @"latDefs" .= (mdl.latDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable)
@@ -120,11 +132,11 @@ checkWeirdTyDef
   => MonadReader Ctx m
   => MonadState Env m
   => MonadWriter (Array CheckError) m
-  => MonadError Error m
+  => MonadError (Array Error) m
   => TyDef
   -> m Unit
 checkWeirdTyDef (TyDef td) = do
-  log $ makeLog [ "check" ] $ "type " <> unwrap td.name
+  log $ newLog [ "check" ] $ "type " <> unwrap td.name
   checkWeirdTy td.ty
 
 checkWeirdLatTyDef
@@ -133,11 +145,11 @@ checkWeirdLatTyDef
   => MonadReader Ctx m
   => MonadState Env m
   => MonadWriter (Array CheckError) m
-  => MonadError Error m
+  => MonadError (Array Error) m
   => LatDef
   -> m Unit
 checkWeirdLatTyDef (LatDef ld) = do
-  log $ makeLog [ "check" ] $ "lattice " <> unwrap ld.name
+  log $ newLog [ "check" ] $ "lattice " <> unwrap ld.name
   checkWeirdLatTy ld.lat
   pure unit
 
@@ -147,11 +159,11 @@ checkPropDef
   => MonadReader Ctx m
   => MonadState Env m
   => MonadWriter (Array CheckError) m
-  => MonadError Error m
+  => MonadError (Array Error) m
   => PropDef
   -> m Unit
 checkPropDef (PropDef pd) = do
-  log $ makeLog [ "check" ] $ "prop " <> unwrap pd.name
+  log $ newLog [ "check" ] $ "prop " <> unwrap pd.name
   checkWeirdLatTy `traverse_` pd.params
 
 checkRuleDef
@@ -160,11 +172,11 @@ checkRuleDef
   => MonadReader Ctx m
   => MonadState Env m
   => MonadWriter (Array CheckError) m
-  => MonadError Error m
+  => MonadError (Array Error) m
   => RuleDef
   -> m Unit
 checkRuleDef (RuleDef rd) = do
-  log $ makeLog [ "check" ] $ "rule (def) " <> unwrap (unwrap rd.rule).name
+  log $ newLog [ "check" ] $ "rule (def) " <> unwrap (unwrap rd.rule).name
   checkRule rd.rule
 
 checkRule
@@ -173,11 +185,11 @@ checkRule
   => MonadReader Ctx m
   => MonadState Env m
   => MonadWriter (Array CheckError) m
-  => MonadError Error m
+  => MonadError (Array Error) m
   => Rule
   -> m Unit
 checkRule (Rule r) = do
-  log $ makeLog [ "check" ] $ "rule " <> unwrap r.name
+  log $ newLog [ "check" ] $ "rule " <> unwrap r.name
   checkColdProp `traverse_` r.hyps
   checkColdProp r.conc
 
@@ -187,7 +199,7 @@ checkWeirdTy
   => MonadReader Ctx m
   => MonadState Env m
   => MonadWriter (Array CheckError) m
-  => MonadError Error m
+  => MonadError (Array Error) m
   => WeirdTy
   -> m Unit
 checkWeirdTy t0@(AppTy x ts) = do
@@ -200,8 +212,8 @@ checkWeirdTy t0@(AppTy x ts) = do
       unless (expectedArity == actualArity) do
         tell [ makeCheckError "type_arity" (pretty t0) $ "The type family " <> pretty x <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
       checkWeirdTy `traverse_` ts
-checkWeirdTy (UnitTy l) = pure unit
-checkWeirdTy (BoolTy l) = pure unit
+checkWeirdTy (UnitTy _) = pure unit
+checkWeirdTy (BoolTy _) = pure unit
 
 checkWeirdLatTy
   :: forall m
@@ -209,7 +221,7 @@ checkWeirdLatTy
   => MonadReader Ctx m
   => MonadState Env m
   => MonadWriter (Array CheckError) m
-  => MonadError Error m
+  => MonadError (Array Error) m
   => WeirdLat
   -> m Unit
 checkWeirdLatTy t0@(AppTy x ts) = do
@@ -231,7 +243,7 @@ checkColdProp
   => MonadReader Ctx m
   => MonadState Env m
   => MonadWriter (Array CheckError) m
-  => MonadError Error m
+  => MonadError (Array Error) m
   => ColdProp
   -> m Unit
 checkColdProp p0@(Prop p) = do
@@ -254,7 +266,7 @@ checkColdTerm
   => MonadReader Ctx m
   => MonadState Env m
   => MonadWriter (Array CheckError) m
-  => MonadError Error m
+  => MonadError (Array Error) m
   => Eq lat
   => Pretty lat
   => NormTy' lat
@@ -269,4 +281,4 @@ checkColdTerm s t0@(VarTm x) = do
         tell [ makeCheckError "term_type" (pretty t0) $ "The variable " <> pretty t0 <> " was expected to have type " <> pretty s <> " but it was inferred to have type " <> pretty s' <> " in context." ]
 checkColdTerm (UnitTy _) UnitTm = pure unit
 checkColdTerm (BoolTy _) (BoolTm _) = pure unit
-checkColdTerm s t = throwError $ makeError [ "check" ] $ "The term " <> pretty t <> " does not satisfy the type " <> pretty s
+checkColdTerm s t = throwError $ pure $ newError [ "check" ] $ "The term " <> pretty t <> " does not satisfy the type " <> pretty s

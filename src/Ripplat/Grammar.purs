@@ -28,14 +28,14 @@ derive instance Newtype Module _
 derive newtype instance Show Module
 
 instance Pretty Module where
-  pretty (Module mdl) =
+  pretty (Module md) =
     unLines
-      [ "module " <> unwrap mdl.name <> ":"
+      [ "module " <> unwrap md.name <> ":"
       , indent $ unLines2
-          [ unLines2 $ map pretty mdl.tyDefs
-          , unLines2 $ map pretty mdl.latDefs
-          , unLines2 $ map pretty mdl.propDefs
-          , unLines2 $ map pretty mdl.ruleDefs
+          [ unLines2 $ map pretty md.tyDefs
+          , unLines2 $ map pretty md.latDefs
+          , unLines2 $ map pretty md.propDefs
+          , unLines2 $ map pretty md.ruleDefs
           ]
       ]
 
@@ -142,11 +142,6 @@ instance (Show lat, Show name) => Show (Ty' lat name) where
 instance (Eq lat, Eq name) => Eq (Ty' lat name) where
   eq x = genericEq x
 
-instance Pretty name => Pretty (Ty name) where
-  pretty (AppTy x ts) = pretty x <> "(" <> (ts # map pretty # commas) <> ")"
-  pretty (UnitTy _) = "Unit"
-  pretty (BoolTy _) = "Bool"
-
 type LatTy = Ty' Lat
 
 type WeirdLat = LatTy LatName
@@ -165,7 +160,7 @@ instance Eq Lat where
 instance Pretty Lat where
   pretty CanonicalLat = "Canonical"
 
-instance Pretty name => Pretty (LatTy name) where
+instance (Pretty name, Pretty lat) => Pretty (Ty' lat name) where
   pretty (AppTy x ts) = pretty x <> "(" <> (ts # map pretty # commas) <> ")"
   pretty (UnitTy l) = "Unit@" <> pretty l
   pretty (BoolTy l) = "Bool@" <> pretty l
@@ -204,15 +199,12 @@ derive newtype instance Ord var => Ord (Var var)
 instance Pretty var => Pretty (Var var) where
   pretty (Var v) = unwrap v.name <> pretty v.id
 
-data TrivialId = TrivialId
+newtype TrivialId = TrivialId Unit
 
-derive instance Generic TrivialId _
-
-instance Show TrivialId where
-  show x = genericShow x
-
-instance Eq TrivialId where
-  eq x = genericEq x
+derive instance Newtype TrivialId _
+derive newtype instance Show TrivialId
+derive newtype instance Eq TrivialId
+derive newtype instance Ord TrivialId
 
 instance Pretty TrivialId where
   pretty _ = ""

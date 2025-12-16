@@ -7,10 +7,10 @@ import Utility
 import Control.Monad.Except (throwError, class MonadError)
 import Control.Monad.Logger (class MonadLogger, log)
 import Control.Monad.Reader (class MonadReader)
-import Control.Monad.State (class MonadState, gets)
+import Control.Monad.State (class MonadState, StateT, execStateT, gets)
 import Control.Monad.Writer (class MonadWriter, tell)
+import Control.Plus (empty)
 import Data.Array as Array
-import Data.Either (Either(..))
 import Data.Foldable (length, traverse_)
 import Data.Lens (view, (.=))
 import Data.Lens.At (at)
@@ -22,7 +22,7 @@ import Data.Traversable (traverse)
 import Data.Tuple (uncurry)
 import Data.Tuple.Nested ((/\))
 import Ripplat.Common (Error, Log, makeError, makeLog)
-import Text.Pretty (pretty)
+import Text.Pretty (class Pretty, pretty)
 
 --------------------------------------------------------------------------------
 
@@ -36,9 +36,9 @@ type Env =
 
 makeEnv :: {} -> Env
 makeEnv {} =
-  { tyDefs: Map.empty
-  , latDefs: Map.empty
-  , propDefs: Map.empty
+  { tyDefs: empty
+  , latDefs: empty
+  , propDefs: empty
   }
 
 newtype CheckError = CheckError
@@ -65,7 +65,7 @@ normalizeTy
 normalizeTy (AppTy x ts) = do
   result <- gets $ view $ prop' @"tyDefs" <<< at x
   case result of
-    Nothing -> throwError $ makeError [ "check" ] $ "Unknown reference to type of the name \"" <> unwrap x <> "\""
+    Nothing -> throwError $ makeError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\""
     Just (TyDef td) -> normalizeTy td.ty -- TODO: actually need to do substituion of args for params here
 normalizeTy (UnitTy l) = pure $ UnitTy l
 normalizeTy (BoolTy l) = pure $ BoolTy l
@@ -82,7 +82,7 @@ normalizeLatTy
 normalizeLatTy (AppTy x ts) = do
   result <- gets $ view $ prop' @"latDefs" <<< at x
   case result of
-    Nothing -> throwError $ makeError [ "check" ] $ "Unknown reference to type of the name \"" <> unwrap x <> "\""
+    Nothing -> throwError $ makeError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\""
     Just (LatDef ld) -> normalizeLatTy ld.lat -- TODO: actually need to do substituion of args for params here
 normalizeLatTy (UnitTy l) = pure $ UnitTy l
 normalizeLatTy (BoolTy l) = pure $ BoolTy l
@@ -193,7 +193,7 @@ checkWeirdTy
 checkWeirdTy t0@(AppTy x ts) = do
   result <- gets $ view $ prop' @"tyDefs" <<< at x
   case result of
-    Nothing -> tell [ makeCheckError "type_ref" (pretty t0) $ "Unknown reference to type " <> pretty x <> "." ]
+    Nothing -> tell [ makeCheckError "unknown_type" (pretty t0) $ "Reference to unknown type " <> pretty x <> "." ]
     Just td -> do
       let expectedArity = tyArity td
       let actualArity = length ts
@@ -215,7 +215,7 @@ checkWeirdLatTy
 checkWeirdLatTy t0@(AppTy x ts) = do
   result <- gets $ view $ prop' @"latDefs" <<< at x
   case result of
-    Nothing -> tell [ makeCheckError "lattice_ref" (pretty t0) $ "Unknown reference to lattice " <> pretty x <> "." ]
+    Nothing -> tell [ makeCheckError "unknown_lattice" (pretty t0) $ "Reference to unknown lattice " <> pretty x <> "." ]
     Just ld -> do
       let expectedArity = latArity ld
       let actualArity = length ts
@@ -237,25 +237,36 @@ checkColdProp
 checkColdProp p0@(Prop p) = do
   result <- gets $ view $ prop' @"propDefs" <<< at p.name
   case result of
-    Nothing -> tell [ makeCheckError "prop" (pretty p0) $ "Unknown reference to proposition " <> pretty p.name <> "." ]
+    Nothing -> tell [ makeCheckError "unknown_prop" (pretty p0) $ "Reference to unknown proposition " <> pretty p.name <> "." ]
     Just (PropDef pd) -> do
       let expectedArity = PropDef pd # propArity
       let actualArity = p.args # length
       unless (expectedArity == actualArity) do
         tell [ makeCheckError "prop_arity" (pretty p0) $ "The proposition " <> pretty p.name <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
-      doms <- normalizeLatTy `traverse` (todo "pd.params")
-      uncurry checkColdTerm `traverse_` (doms `Array.zip` p.args)
+      doms <- normalizeLatTy `traverse` pd.params
+      _sigma <- flip execStateT empty do
+        uncurry checkColdTerm `traverse_` (doms `Array.zip` p.args)
+      pure unit
 
 checkColdTerm
-  :: forall m
+  :: forall m lat
    . MonadLogger Log m
   => MonadReader Ctx m
   => MonadState Env m
   => MonadWriter (Array CheckError) m
   => MonadError Error m
-  => NormLat
+  => Eq lat
+  => Pretty lat
+  => NormTy' lat
   -> ColdTm
-  -> m Unit
-checkColdTerm l (VarTm _) = todo "checkColdTerm"
-checkColdTerm l UnitTm = todo "checkColdTerm"
-checkColdTerm l (BoolTm _) = todo "checkColdTerm"
+  -> StateT (Map ColdVar (NormTy' lat)) m Unit
+checkColdTerm s t0@(VarTm x) = do
+  result <- gets $ view $ at x
+  case result of
+    Nothing -> tell [ makeCheckError "unknown_var" (pretty t0) $ "Reference to unknown variable " <> pretty x <> "." ]
+    Just s' -> do
+      unless (s == s') do
+        tell [ makeCheckError "term_type" (pretty t0) $ "The variable " <> pretty t0 <> " was expected to have type " <> pretty s <> " but it was inferred to have type " <> pretty s' <> " in context." ]
+checkColdTerm (UnitTy _) UnitTm = pure unit
+checkColdTerm (BoolTy _) (BoolTm _) = pure unit
+checkColdTerm s t = throwError $ makeError [ "check" ] $ "The term " <> pretty t <> " does not satisfy the type " <> pretty s

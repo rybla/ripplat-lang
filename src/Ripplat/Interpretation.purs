@@ -8,14 +8,22 @@ import Utility
 
 import Control.Monad.Error.Class (class MonadError)
 import Control.Monad.Logger (class MonadLogger)
-import Control.Monad.Reader (class MonadReader, ReaderT)
-import Control.Monad.State (class MonadState, StateT)
-import Control.Monad.Writer (class MonadWriter, WriterT)
-import Data.Newtype (class Newtype)
+import Control.Monad.RWS (RWST)
+import Control.Plus (empty)
+import Data.Either (Either(..))
+import Data.Foldable (null)
+import Data.Lens ((.=))
+import Data.List (List(..))
+import Data.Map (Map)
+import Data.Map as Map
+import Data.Newtype (class Newtype, unwrap)
+import Data.Tuple.Nested ((/\))
 import Options.Applicative.Internal.Utils (unLines)
 import Text.Pretty (indent)
 
 --------------------------------------------------------------------------------
+
+type T m = RWST (Ctx m) (Array InterpretError) Env m
 
 type Ctx m =
   { platform :: Platform m
@@ -30,11 +38,20 @@ newCtx args =
   { platform: args.platform
   }
 
-type Env = {}
+type Env =
+  { lemmas :: Map PropName (Array Lemma)
+  , axioms :: Map PropName (Array Axiom)
+  }
+
+type Lemma = { name :: RuleName, hyp :: ColdProp, hyps :: List ColdProp, conc :: ColdProp }
+
+type Axiom = { name :: RuleName, prop :: ColdProp }
 
 newEnv :: {} -> Env
 newEnv _args =
-  {}
+  { lemmas: empty
+  , axioms: empty
+  }
 
 newtype InterpretError = InterpretError
   { label :: String
@@ -55,15 +72,49 @@ instance ToError InterpretError where
 
 --------------------------------------------------------------------------------
 
--- type T m = ReaderT (Ctx m) (WriterT (Array InterpretError) (StateT Env m))
+interpretModule
+  :: forall m
+   . MonadLogger Log m
+  => MonadError (Array Error) m
+  => Module
+  -> T m Unit
+interpretModule (Module md) = do
+  let
+    lemmas /\ axioms = partitionEither
+      ( \(RuleDef rd) ->
+          let
+            Rule r = rd.rule
+          in
+            case r.hyps of
+              Cons hyp@(Prop p) hyps ->
+                Left $ p.name /\ [ { name: r.name, hyp, hyps, conc: r.conc } ]
+              Nil ->
+                let
+                  Prop p = r.conc
+                in
+                  Right $ p.name /\ [ { name: r.name, prop: r.conc } ]
+      )
+      md.ruleDefs
+  prop' @"lemmas" .= (lemmas # Map.fromFoldableWith append)
+  prop' @"axioms" .= (axioms # Map.fromFoldableWith append)
+  learnFixpoint
 
--- interpretModule
---   :: forall m
---    . MonadLogger Log m
---   => MonadError (Array Error) m
---   => MonadReader (Ctx m) m
---   => MonadState Env m
---   => MonadWriter (Array InterpretError) m
---   => Module
---   -> m Unit
--- interpretModule = todo ""
+learnFixpoint
+  :: forall m
+   . MonadLogger Log m
+  => MonadError (Array Error) m
+  => T m Unit
+learnFixpoint = do
+  progress <- learn
+  if progress then
+    learnFixpoint
+  else
+    pure unit
+
+learn
+  :: forall m
+   . MonadLogger Log m
+  => MonadError (Array Error) m
+  => T m Boolean
+learn = todo ""
+

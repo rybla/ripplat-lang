@@ -7,6 +7,7 @@ import Data.Either.Nested (type (\/))
 import Data.Eq.Generic (genericEq)
 import Data.Foldable (length)
 import Data.Generic.Rep (class Generic)
+import Data.List (List)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
 import Options.Applicative.Internal.Utils (unLines)
@@ -101,7 +102,7 @@ instance Pretty LatDef where
 
 newtype Rule = Rule
   { name :: RuleName
-  , hyps :: Array ColdProp
+  , hyps :: List ColdProp
   , conc :: ColdProp
   }
 

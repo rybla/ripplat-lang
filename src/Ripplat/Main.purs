@@ -32,7 +32,7 @@ main pf mdl = do
     # execWriterT
 
   unless (null chErrs) do
-    throwError $ map (toError [ "checking" ]) chErrs
+    throwError $ map (toError [ "check" ]) chErrs
 
   -- interpretation
 

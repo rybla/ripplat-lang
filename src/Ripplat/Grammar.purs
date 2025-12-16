@@ -46,6 +46,8 @@ newtype PropDef = PropDef
   , params :: Array WeirdLat
   }
 
+newPropDef name params = PropDef { name, params }
+
 derive instance Newtype PropDef _
 derive newtype instance Show PropDef
 
@@ -56,6 +58,8 @@ instance Pretty PropDef where
 newtype RuleDef = RuleDef
   { rule :: Rule
   }
+
+newRuleDef rule = RuleDef { rule }
 
 derive instance Newtype RuleDef _
 derive newtype instance Show RuleDef
@@ -69,6 +73,8 @@ newtype TyDef = TyDef
   , ty :: WeirdTy
   }
 
+newTyDef name params ty = TyDef { name, params, ty }
+
 derive instance Newtype TyDef _
 derive newtype instance Show TyDef
 
@@ -81,6 +87,8 @@ newtype LatDef = LatDef
   , params :: Array LatName
   , lat :: WeirdLat
   }
+
+newLatDef name params lat = LatDef { name, params, lat }
 
 derive instance Newtype LatDef _
 derive newtype instance Show LatDef
@@ -97,6 +105,8 @@ newtype Rule = Rule
   , conc :: ColdProp
   }
 
+newRule name hyps conc = Rule { name, hyps, conc }
+
 derive instance Newtype Rule _
 derive newtype instance Show Rule
 
@@ -112,6 +122,8 @@ newtype Prop id = Prop
   { name :: PropName
   , args :: Array (Tm id)
   }
+
+newProp name args = Prop { name, args }
 
 type ColdProp = Prop TrivialId
 type HotProp = Prop HotId
@@ -142,6 +154,11 @@ instance (Show lat, Show name) => Show (Ty' lat name) where
 instance (Eq lat, Eq name) => Eq (Ty' lat name) where
   eq x = genericEq x
 
+instance (Pretty name, Pretty lat) => Pretty (Ty' lat name) where
+  pretty (AppTy x ts) = pretty x <> "(" <> (ts # map pretty # commas) <> ")"
+  pretty (UnitTy l) = "Unit@" <> pretty l
+  pretty (BoolTy l) = "Bool@" <> pretty l
+
 type LatTy = Ty' Lat
 
 type WeirdLat = LatTy LatName
@@ -159,11 +176,6 @@ instance Eq Lat where
 
 instance Pretty Lat where
   pretty CanonicalLat = "Canonical"
-
-instance (Pretty name, Pretty lat) => Pretty (Ty' lat name) where
-  pretty (AppTy x ts) = pretty x <> "(" <> (ts # map pretty # commas) <> ")"
-  pretty (UnitTy l) = "Unit@" <> pretty l
-  pretty (BoolTy l) = "Bool@" <> pretty l
 
 data Tm var
   = VarTm (Var var)
@@ -188,6 +200,9 @@ instance Pretty var => Pretty (Tm var) where
 
 newtype Var var = Var { name :: VarName, id :: var }
 
+newVar name id = Var { name, id }
+newColdVar name = Var { name, id: top } :: ColdVar
+
 type ColdVar = Var TrivialId
 type HotVar = Var HotId
 
@@ -205,6 +220,7 @@ derive instance Newtype TrivialId _
 derive newtype instance Show TrivialId
 derive newtype instance Eq TrivialId
 derive newtype instance Ord TrivialId
+derive newtype instance Bounded TrivialId
 
 instance Pretty TrivialId where
   pretty _ = ""
@@ -225,57 +241,64 @@ newtype ModuleName = ModuleName String
 
 derive instance Newtype ModuleName _
 derive newtype instance Show ModuleName
-derive newtype instance Pretty ModuleName
 derive newtype instance Eq ModuleName
 derive newtype instance Ord ModuleName
+instance Pretty ModuleName where
+  pretty = unwrap
 
 newtype PropName = PropName String
 
 derive instance Newtype PropName _
 derive newtype instance Show PropName
-derive newtype instance Pretty PropName
 derive newtype instance Eq PropName
 derive newtype instance Ord PropName
+instance Pretty PropName where
+  pretty = unwrap
 
 newtype RuleName = RuleName String
 
 derive instance Newtype RuleName _
 derive newtype instance Show RuleName
-derive newtype instance Pretty RuleName
 derive newtype instance Eq RuleName
 derive newtype instance Ord RuleName
+instance Pretty RuleName where
+  pretty = unwrap
 
 newtype LatName = LatName String
 
 derive instance Newtype LatName _
 derive newtype instance Show LatName
-derive newtype instance Pretty LatName
 derive newtype instance Eq LatName
 derive newtype instance Ord LatName
+instance Pretty LatName where
+  pretty = unwrap
 
 newtype TyName = TyName String
 
 derive instance Newtype TyName _
 derive newtype instance Show TyName
-derive newtype instance Pretty TyName
 derive newtype instance Eq TyName
 derive newtype instance Ord TyName
+instance Pretty TyName where
+  pretty = unwrap
 
 newtype TmName = TmName String
 
 derive instance Newtype TmName _
 derive newtype instance Show TmName
-derive newtype instance Pretty TmName
 derive newtype instance Eq TmName
 derive newtype instance Ord TmName
+instance Pretty TmName where
+  pretty = unwrap
 
 newtype VarName = VarName String
 
 derive instance Newtype VarName _
 derive newtype instance Show VarName
-derive newtype instance Pretty VarName
 derive newtype instance Eq VarName
 derive newtype instance Ord VarName
+instance Pretty VarName where
+  pretty = unwrap
 
 --------------------------------------------------------------------------------
 

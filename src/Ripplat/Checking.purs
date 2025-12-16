@@ -1,9 +1,9 @@
 module Ripplat.Checking where
 
 import Prelude
+import Ripplat.Common
 import Ripplat.Grammr
 import Utility
-import Ripplat.Common
 
 import Control.Monad.Except (throwError, class MonadError)
 import Control.Monad.Logger (class MonadLogger, log)
@@ -23,7 +23,7 @@ import Data.Traversable (traverse)
 import Data.Tuple (uncurry)
 import Data.Tuple.Nested ((/\))
 import Options.Applicative.Internal.Utils (unLines)
-import Text.Pretty (class Pretty, indent, pretty)
+import Text.Pretty (class Pretty, indent, pretty, quoteCode)
 
 --------------------------------------------------------------------------------
 
@@ -59,7 +59,7 @@ derive instance Newtype CheckError _
 instance ToError CheckError where
   toErrorMsg (CheckError ce) =
     unLines
-      [ "checking error ()" <> ce.label <> ") at " <> ce.source <> ":"
+      [ ce.label <> " at " <> ce.source <> ":"
       , indent ce.msg
       ]
 
@@ -205,12 +205,12 @@ checkWeirdTy
 checkWeirdTy t0@(AppTy x ts) = do
   result <- gets $ view $ prop' @"tyDefs" <<< at x
   case result of
-    Nothing -> tell [ newCheckError "unknown_type" (pretty t0) $ "Reference to unknown type " <> pretty x <> "." ]
+    Nothing -> tell [ newCheckError "unknown_type" (pretty t0) $ "Reference to unknown type " <> quoteCode (pretty x) <> "." ]
     Just td -> do
       let expectedArity = tyArity td
       let actualArity = length ts
       unless (expectedArity == actualArity) do
-        tell [ newCheckError "type_arity" (pretty t0) $ "The type family " <> pretty x <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
+        tell [ newCheckError "type_arity" (pretty t0) $ "The type family " <> quoteCode (pretty x) <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
       checkWeirdTy `traverse_` ts
 checkWeirdTy (UnitTy _) = pure unit
 checkWeirdTy (BoolTy _) = pure unit
@@ -227,12 +227,12 @@ checkWeirdLatTy
 checkWeirdLatTy t0@(AppTy x ts) = do
   result <- gets $ view $ prop' @"latDefs" <<< at x
   case result of
-    Nothing -> tell [ newCheckError "unknown_lattice" (pretty t0) $ "Reference to unknown lattice " <> pretty x <> "." ]
+    Nothing -> tell [ newCheckError "unknown_lattice" (pretty t0) $ "Reference to unknown lattice " <> quoteCode (pretty x) <> "." ]
     Just ld -> do
       let expectedArity = latArity ld
       let actualArity = length ts
       unless (expectedArity == actualArity) do
-        tell [ newCheckError "lattice_arity" (pretty t0) $ "The lattice family " <> pretty x <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
+        tell [ newCheckError "lattice_arity" (pretty t0) $ "The lattice family " <> quoteCode (pretty x) <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
       checkWeirdLatTy `traverse_` ts
 checkWeirdLatTy (UnitTy _) = pure unit
 checkWeirdLatTy (BoolTy _) = pure unit
@@ -249,12 +249,12 @@ checkColdProp
 checkColdProp p0@(Prop p) = do
   result <- gets $ view $ prop' @"propDefs" <<< at p.name
   case result of
-    Nothing -> tell [ newCheckError "unknown_prop" (pretty p0) $ "Reference to unknown proposition " <> pretty p.name <> "." ]
+    Nothing -> tell [ newCheckError "unknown_prop" (pretty p0) $ "Reference to unknown proposition " <> quoteCode (pretty p.name) <> "." ]
     Just (PropDef pd) -> do
       let expectedArity = PropDef pd # propArity
       let actualArity = p.args # length
       unless (expectedArity == actualArity) do
-        tell [ newCheckError "prop_arity" (pretty p0) $ "The proposition " <> pretty p.name <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
+        tell [ newCheckError "prop_arity" (pretty p0) $ "The proposition " <> quoteCode (pretty p.name) <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
       doms <- normalizeLatTy `traverse` pd.params
       _sigma <- flip execStateT empty do
         uncurry checkColdTerm `traverse_` (doms `Array.zip` p.args)
@@ -275,10 +275,10 @@ checkColdTerm
 checkColdTerm s t0@(VarTm x) = do
   result <- gets $ view $ at x
   case result of
-    Nothing -> tell [ newCheckError "unknown_var" (pretty t0) $ "Reference to unknown variable " <> pretty x <> "." ]
+    Nothing -> tell [ newCheckError "unknown_var" (pretty t0) $ "Reference to unknown variable " <> quoteCode (pretty x) <> "." ]
     Just s' -> do
       unless (s == s') do
-        tell [ newCheckError "term_type" (pretty t0) $ "The variable " <> pretty t0 <> " was expected to have type " <> pretty s <> " but it was inferred to have type " <> pretty s' <> " in context." ]
+        tell [ newCheckError "term_lattice" (pretty t0) $ "The variable " <> quoteCode (pretty t0) <> " was expected to have lattice " <> quoteCode (pretty s) <> " but it was inferred to have type " <> quoteCode (pretty s') <> " in context." ]
 checkColdTerm (UnitTy _) UnitTm = pure unit
 checkColdTerm (BoolTy _) (BoolTm _) = pure unit
-checkColdTerm s t = throwError [ newError [ "check" ] $ "The term " <> pretty t <> " does not satisfy the type " <> pretty s ]
+checkColdTerm s t = tell [ newCheckError "term_lattice" (pretty t) $ "The term " <> quoteCode (pretty t) <> " does not satisfy the lattice " <> quoteCode (pretty s) ]

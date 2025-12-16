@@ -36,3 +36,6 @@ unLines2 = fromFoldable >>> joinWith "\n\n"
 
 commas :: forall f. Foldable f => f String -> String
 commas = fromFoldable >>> joinWith ", "
+
+quoteCode :: String -> String
+quoteCode s = "`" <> s <> "`"

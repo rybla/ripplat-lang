@@ -4,6 +4,8 @@ import Prelude
 
 import Data.Generic.Rep (class Generic)
 import Data.String (joinWith)
+import Options.Applicative.Internal.Utils (unLines)
+import Text.Pretty (indent)
 
 data Log = Log
   { path :: Array String
@@ -25,7 +27,10 @@ data Error = Error
 derive instance Generic Error _
 
 instance Show Error where
-  show (Error l) = "[" <> (l.path # joinWith ".") <> "] " <> l.msg
+  show (Error l) = unLines
+    [ "[" <> (l.path # joinWith ".") <> "]"
+    , indent l.msg
+    ]
 
 type ErrorPath = Array String
 
@@ -35,4 +40,3 @@ class ToError a where
   toErrorMsg :: a -> String
 
 toError path a = newError path (toErrorMsg a)
-

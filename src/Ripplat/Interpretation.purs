@@ -9,14 +9,18 @@ import Utility
 import Control.Monad.Error.Class (class MonadError)
 import Control.Monad.Logger (class MonadLogger)
 import Control.Monad.RWS (RWST)
+import Control.Monad.State (gets)
 import Control.Plus (empty)
 import Data.Either (Either(..))
-import Data.Foldable (null)
-import Data.Lens ((.=))
+import Data.Foldable (traverse_)
+import Data.Lens (view, (.=))
 import Data.List (List(..))
+import Data.List.Lazy as LazyList
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Newtype (class Newtype, unwrap)
+import Data.Maybe (fromMaybe, maybe)
+import Data.Monoid (mempty)
+import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Tuple.Nested ((/\))
 import Options.Applicative.Internal.Utils (unLines)
 import Text.Pretty (indent)
@@ -38,19 +42,24 @@ newCtx args =
   { platform: args.platform
   }
 
+-- | Interpretation environment
+-- | - lemmas are grouped by their first hypothesis's proposition name
+-- | - axioms are grouped by their proposition name
 type Env =
-  { lemmas :: Map PropName (Array Lemma)
-  , axioms :: Map PropName (Array Axiom)
+  { lemmaGroups :: Map PropName (Array Lemma)
+  , axiomGroups :: Map PropName (Array Axiom)
   }
 
-type Lemma = { name :: RuleName, hyp :: ColdProp, hyps :: List ColdProp, conc :: ColdProp }
+-- | A lemma is a rule that has at least one hypothesis, called the head hypothesis.
+type Lemma = { name :: RuleName, head :: ColdProp, hyps :: List ColdProp, conc :: ColdProp }
 
-type Axiom = { name :: RuleName, prop :: ColdProp }
+-- | An axiom is a rule that has no hypotheses.
+type Axiom = { name :: RuleName, conc :: ColdProp }
 
 newEnv :: {} -> Env
 newEnv _args =
-  { lemmas: empty
-  , axioms: empty
+  { lemmaGroups: empty
+  , axiomGroups: empty
   }
 
 newtype InterpretError = InterpretError
@@ -80,23 +89,23 @@ interpretModule
   -> T m Unit
 interpretModule (Module md) = do
   let
-    lemmas /\ axioms = partitionEither
+    lemmaGroups /\ axiomGroups = partitionEither
       ( \(RuleDef rd) ->
           let
             Rule r = rd.rule
           in
             case r.hyps of
-              Cons hyp@(Prop p) hyps ->
-                Left $ p.name /\ [ { name: r.name, hyp, hyps, conc: r.conc } ]
+              Cons head@(Prop p) hyps ->
+                Left $ p.name /\ [ { name: r.name, head, hyps, conc: r.conc } :: Lemma ]
               Nil ->
                 let
                   Prop p = r.conc
                 in
-                  Right $ p.name /\ [ { name: r.name, prop: r.conc } ]
+                  Right $ p.name /\ [ { name: r.name, conc: r.conc } :: Axiom ]
       )
       md.ruleDefs
-  prop' @"lemmas" .= (lemmas # Map.fromFoldableWith append)
-  prop' @"axioms" .= (axioms # Map.fromFoldableWith append)
+  prop' @"lemmaGroups" .= (lemmaGroups # Map.fromFoldableWith append)
+  prop' @"axiomGroups" .= (axiomGroups # Map.fromFoldableWith append)
   learnFixpoint
 
 learnFixpoint
@@ -116,5 +125,22 @@ learn
    . MonadLogger Log m
   => MonadError (Array Error) m
   => T m Boolean
-learn = todo ""
+learn = do
+  lemmaGroups <- gets $ view $ prop' @"lemmaGroups"
+  axiomGroups <- gets $ view $ prop' @"axiomGroups"
+  lemmaGroups # (Map.toUnfoldable :: _ -> LazyList.List _) # traverse_ \(propName /\ lemmas) -> do
+    lemmas # traverse_ \lemma -> do
+      axiomGroups # Map.lookup propName # fromMaybe mempty # traverse_ \axiom -> do
+        applyLemmaToAxiom lemma axiom
 
+  pure false
+
+applyLemmaToAxiom
+  :: forall m
+   . MonadLogger Log m
+  => MonadError (Array Error) m
+  => Lemma
+  -> Axiom
+  -> T m Boolean
+applyLemmaToAxiom lemma axiom = do
+  pure false

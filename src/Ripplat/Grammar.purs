@@ -14,7 +14,7 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
 import Options.Applicative.Internal.Utils (unLines)
 import Text.Pretty (class Pretty, commas, indent, pretty, unLines2)
-import Utility (todo, todoK)
+import Utility (todoK)
 
 --------------------------------------------------------------------------------
 

@@ -2,8 +2,10 @@ module Ripplat.Interpretation where
 
 import Prelude
 
-import Control.Monad.Except (runExceptT, throwError)
+import Control.Applicative (pure)
+import Control.Monad.Except (class MonadError, runExceptT, throwError)
 import Control.Monad.RWS (RWSResult(..), RWST, modify_)
+import Control.Monad.Reader (asks)
 import Control.Monad.State (execStateT, gets)
 import Control.Monad.Trans.Class (lift)
 import Control.Plus (empty)
@@ -17,20 +19,20 @@ import Data.List (List(..))
 import Data.List.Lazy as LazyList
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, maybe, maybe')
 import Data.Newtype (class Newtype, unwrap)
 import Data.Tuple.Nested ((/\))
 import Data.Unfoldable (none)
 import Options.Applicative.Internal.Utils (unLines)
 import Record as Record
 import Ripplat.Checking as Checking
-import Ripplat.Common (class ToError)
-import Ripplat.Grammr (ColdId, ColdProp, ColdTm, HotId, Module(..), NormLat, Prop(..), PropName, Rule(..), RuleDef(..), RuleName, Substitution)
+import Ripplat.Common (class ToError, Error(..), newError)
+import Ripplat.Grammr (ColdId, ColdProp, ColdTm, HotId, Module(..), NormLat, Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), RuleName, Substitution)
 import Ripplat.Platform (Platform)
 import Ripplat.Unification (unify)
 import Ripplat.Unification as Unification
-import Text.Pretty (indent)
-import Utility (partitionEither, prop', runRWST', todoK)
+import Text.Pretty (indent, quoteCode)
+import Utility (partitionEither, prop', runRWST', todo, todoK)
 
 --------------------------------------------------------------------------------
 
@@ -109,7 +111,7 @@ instance ToError InterpretError where
 --------------------------------------------------------------------------------
 
 -- | Interpret a module by learning every consequence of its rules.
-interpretModule :: forall m. Monad m => Module -> T m Unit
+interpretModule :: forall m. MonadError Error m => Module -> T m Unit
 interpretModule (Module md) = do
   let
     lemmaGroups /\ axiomGroups = partitionEither
@@ -132,7 +134,7 @@ interpretModule (Module md) = do
   learnFixpoint
 
 -- | Repeatedly learn new knowledge until no more progress can be made.
-learnFixpoint :: forall m. Monad m => T m Unit
+learnFixpoint :: forall m. MonadError Error m => T m Unit
 learnFixpoint = do
   progress <- learn
   if progress then
@@ -143,7 +145,7 @@ learnFixpoint = do
 -- | Learn the next generation of knowledge by attempting to apply each lemma to
 -- | each axiom. Returns whether or not knowledge progress was made.
 -- learn :: forall m. Monad m => StateT Boolean (T m) Unit
-learn :: forall m. Monad m => T m Boolean
+learn :: forall m. MonadError Error m => T m Boolean
 learn = go `execStateT` false
   where
   go = do
@@ -155,7 +157,7 @@ learn = go `execStateT` false
           progress <- lift $ applyLemmaToAxiom lemma axiom
           modify_ (progress || _)
 
-applyLemmaToAxiom :: forall m. Monad m => ColdLemma -> ColdAxiom -> T m Boolean
+applyLemmaToAxiom :: forall m. MonadError Error m => ColdLemma -> ColdAxiom -> T m Boolean
 applyLemmaToAxiom lemma0 axiom0 = go lemma0 axiom0 # runExceptT >>= or >>> pure
   where
   go lemma axiom = do
@@ -176,7 +178,7 @@ applyLemmaToAxiom lemma0 axiom0 = go lemma0 axiom0 # runExceptT >>= or >>> pure
 
 -- | Learn a lemma into the state. Returns whether or not this resulted in
 -- | knowledge progress (i.e. the lemma was not subsumed by existing knowledge).
-learnLemma :: forall m. Monad m => ColdLemma -> T m Boolean
+learnLemma :: forall m. MonadError Error m => ColdLemma -> T m Boolean
 learnLemma lemma = go # runExceptT >>= either pure (const (pure true))
   where
   go = do
@@ -188,7 +190,7 @@ learnLemma lemma = go # runExceptT >>= either pure (const (pure true))
 
 -- | Learn a axiom into the state. Returns whether or not this resulted in
 -- | knowledge progress (i.e. the axiom was not subsumed by existing knowledge).
-learnAxiom :: forall m. Monad m => ColdAxiom -> T m Boolean
+learnAxiom :: forall m. MonadError Error m => ColdAxiom -> T m Boolean
 learnAxiom axiom = go # runExceptT >>= either pure (const (pure true))
   where
   go = do
@@ -199,13 +201,15 @@ learnAxiom axiom = go # runExceptT >>= either pure (const (pure true))
         throwError false
 
 -- | Whether or not the first proposition is subsumed by the second proposition.
-subsumedBy :: forall m. Monad m => ColdProp -> ColdProp -> T m Boolean
-subsumedBy (Prop p1) (Prop p2) =
-  -- l <- 
-  pure $ and
-    [ p1.name == p2.name
-    -- , latLeq ?a p1.arg p2.arg
-    ]
+subsumedBy :: forall m. MonadError Error m => ColdProp -> ColdProp -> T m Boolean
+subsumedBy (Prop p1) (Prop p2) = do
+  PropDef pd <- prop' @"propDefs" <<< at p1.name # view # asks >>= maybe (throwError $ newError [ "interpretation", "subsumedBy" ] $ "Reference to unknown proposition of the name " <> quoteCode (unwrap p1.name)) pure
+  -- l <- ?a pd.param
+  -- pure $ and
+  --   [ p1.name == p2.name
+  --   , latLeq l p1.arg p2.arg
+  --   ]
+  todo ""
 
 latLeq :: NormLat -> ColdTm -> ColdTm -> Boolean
 latLeq = todoK "latLeq"

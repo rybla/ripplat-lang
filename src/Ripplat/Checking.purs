@@ -79,38 +79,23 @@ instance ToError CheckError where
 
 --------------------------------------------------------------------------------
 
-normalizeTy
-  :: forall m
-   . MonadLogger Log m
-  => MonadError (Array Error) m
-  => WeirdTy
-  -> T m NormTy
+normalizeTy :: forall m. MonadError (Array Error) m => WeirdTy -> T m NormTy
 normalizeTy (AppTy x _ts) = do
-  TyDef td <- prop' @"tyDefs" <<< at x # view # asks >>= maybe (throwError [ newError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\"" ]) pure
+  TyDef td <- prop' @"tyDefs" <<< at x # view # asks >>= maybe (throwError [ newError [ "check" ] $ "Reference to unknown type of the name " <> quoteCode (unwrap x) ]) pure
   normalizeTy td.ty -- TODO: actually need to do substituion of args for params here
 normalizeTy (UnitTy l) = pure $ UnitTy l
 normalizeTy (BoolTy l) = pure $ BoolTy l
 
-normalizeLatTy
-  :: forall m
-   . MonadLogger Log m
-  => MonadError (Array Error) m
-  => WeirdLat
-  -> T m NormLat
+normalizeLatTy :: forall m. MonadError (Array Error) m => WeirdLat -> T m NormLat
 normalizeLatTy (AppTy x _ts) = do
-  LatDef ld <- prop' @"latDefs" <<< at x # view # asks >>= maybe (throwError [ newError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\"" ]) pure
+  LatDef ld <- prop' @"latDefs" <<< at x # view # asks >>= maybe (throwError [ newError [ "check" ] $ "Reference to unknown type of the name " <> quoteCode (unwrap x) ]) pure
   normalizeLatTy ld.lat -- TODO: actually need to do substituion of args for params here
 normalizeLatTy (UnitTy l) = pure $ UnitTy l
 normalizeLatTy (BoolTy l) = pure $ BoolTy l
 
 --------------------------------------------------------------------------------
 
-checkModule
-  :: forall m
-   . MonadLogger Log m
-  => MonadError (Array Error) m
-  => Module
-  -> T m Unit
+checkModule :: forall m. MonadLogger Log m => MonadError (Array Error) m => Module -> T m Unit
 checkModule (Module md) = do
   log $ newLog [ "check" ] $ "module " <> unwrap md.name
   checkWeirdTyDef `traverse_` md.tyDefs
@@ -121,64 +106,34 @@ checkModule (Module md) = do
 
 --------------------------------------------------------------------------------
 
-checkWeirdTyDef
-  :: forall m
-   . MonadLogger Log m
-  => MonadError (Array Error) m
-  => TyDef
-  -> T m Unit
+checkWeirdTyDef :: forall m. MonadLogger Log m => MonadError (Array Error) m => TyDef -> T m Unit
 checkWeirdTyDef (TyDef td) = do
   log $ newLog [ "check" ] $ "type " <> unwrap td.name
   checkWeirdTy td.ty
 
-checkWeirdLatTyDef
-  :: forall m
-   . MonadLogger Log m
-  => MonadError (Array Error) m
-  => LatDef
-  -> T m Unit
+checkWeirdLatTyDef :: forall m. MonadLogger Log m => MonadError (Array Error) m => LatDef -> T m Unit
 checkWeirdLatTyDef (LatDef ld) = do
   log $ newLog [ "check" ] $ "lattice " <> unwrap ld.name
   checkWeirdLatTy ld.lat
   pure unit
 
-checkPropDef
-  :: forall m
-   . MonadLogger Log m
-  => MonadError (Array Error) m
-  => PropDef
-  -> T m Unit
+checkPropDef :: forall m. MonadLogger Log m => MonadError (Array Error) m => PropDef -> T m Unit
 checkPropDef (PropDef pd) = do
   log $ newLog [ "check" ] $ "prop " <> unwrap pd.name
   checkWeirdLatTy pd.param
 
-checkRuleDef
-  :: forall m
-   . MonadLogger Log m
-  => MonadError (Array Error) m
-  => RuleDef
-  -> T m Unit
+checkRuleDef :: forall m. MonadLogger Log m => MonadError (Array Error) m => RuleDef -> T m Unit
 checkRuleDef (RuleDef rd) = do
   log $ newLog [ "check" ] $ "rule (def) " <> unwrap (unwrap rd.rule).name
   checkRule rd.rule
 
-checkRule
-  :: forall m
-   . MonadLogger Log m
-  => MonadError (Array Error) m
-  => Rule
-  -> T m Unit
+checkRule :: forall m. MonadLogger Log m => MonadError (Array Error) m => Rule -> T m Unit
 checkRule (Rule r) = do
   log $ newLog [ "check" ] $ "rule " <> unwrap r.name
   checkColdProp `traverse_` r.hyps
   checkColdProp r.conc
 
-checkWeirdTy
-  :: forall m
-   . MonadLogger Log m
-  => MonadError (Array Error) m
-  => WeirdTy
-  -> T m Unit
+checkWeirdTy :: forall m. MonadError (Array Error) m => WeirdTy -> T m Unit
 checkWeirdTy t0@(AppTy x ts) = do
   mb_td <- prop' @"tyDefs" <<< at x # view # asks >>= maybe (tell [ newCheckError "unknown_type" (pretty t0) $ "Reference to unknown type " <> quoteCode (pretty x) <> "." ] >>= const (pure none)) (pure <<< pure)
   case mb_td of
@@ -192,12 +147,7 @@ checkWeirdTy t0@(AppTy x ts) = do
 checkWeirdTy (UnitTy _) = pure unit
 checkWeirdTy (BoolTy _) = pure unit
 
-checkWeirdLatTy
-  :: forall m
-   . MonadLogger Log m
-  => MonadError (Array Error) m
-  => WeirdLat
-  -> T m Unit
+checkWeirdLatTy :: forall m. MonadError (Array Error) m => WeirdLat -> T m Unit
 checkWeirdLatTy t0@(AppTy x ts) = do
   md_td <- prop' @"latDefs" <<< at x # view # asks >>= maybe (tell [ newCheckError "unknown_lattice" (pretty t0) $ "Reference to unknown lattice " <> quoteCode (pretty x) <> "." ] >>= const (pure none)) (pure <<< pure)
   case md_td of
@@ -211,12 +161,7 @@ checkWeirdLatTy t0@(AppTy x ts) = do
 checkWeirdLatTy (UnitTy _) = pure unit
 checkWeirdLatTy (BoolTy _) = pure unit
 
-checkColdProp
-  :: forall m
-   . MonadLogger Log m
-  => MonadError (Array Error) m
-  => ColdProp
-  -> T m Unit
+checkColdProp :: forall m. MonadError (Array Error) m => ColdProp -> T m Unit
 checkColdProp p0@(Prop p) = do
   result <- prop' @"propDefs" <<< at p.name # view # asks >>= maybe (tell [ newCheckError "unknown_prop" (pretty p0) $ "Reference to unknown proposition " <> quoteCode (pretty p.name) <> "." ] >>= const (pure none)) (pure >>> pure)
   case result of
@@ -227,15 +172,7 @@ checkColdProp p0@(Prop p) = do
         checkColdTerm dom p.arg
       pure unit
 
-checkColdTerm
-  :: forall m lat
-   . MonadLogger Log m
-  => MonadError (Array Error) m
-  => Eq lat
-  => Pretty lat
-  => NormTy' lat
-  -> ColdTm
-  -> StateT (Map ColdVar (NormTy' lat)) (T m) Unit
+checkColdTerm :: forall m lat. MonadError (Array Error) m => Eq lat => Pretty lat => NormTy' lat -> ColdTm -> StateT (Map ColdVar (NormTy' lat)) (T m) Unit
 -- ensure that all uses of a variable are at the same lattice
 checkColdTerm s t0@(VarTm x) = do
   result <- at x # view # gets

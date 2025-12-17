@@ -1,9 +1,9 @@
 module Ripplat.Main where
 
 import Prelude
-import Ripplat.Common
-import Ripplat.Grammr
 
+import Ripplat.Common (Error, Log, toError)
+import Ripplat.Grammr (Module)
 import Control.Monad.Except (class MonadError, throwError)
 import Control.Monad.Logger (class MonadLogger)
 import Control.Monad.RWS (RWSResult(..), runRWST)
@@ -20,7 +20,7 @@ main
   => Platform m
   -> Module
   -> m Unit
-main pf md = do
+main _pf md = do
 
   -- checking
 

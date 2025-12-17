@@ -1,16 +1,15 @@
 module Ripplat.Checking where
 
 import Prelude
-import Ripplat.Common
-import Ripplat.Grammr
-import Utility
 
+import Ripplat.Common (class ToError, Error, Log, newError, newLog)
+import Ripplat.Grammr (ColdProp, ColdTm, ColdVar, LatDef(..), LatName, Module(..), NormLat, NormTy, NormTy', Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), Tm(..), Ty'(..), TyDef(..), TyName, WeirdLat, WeirdTy, latArity, propArity, tyArity)
+import Utility (prop')
 import Control.Monad.Except (throwError, class MonadError)
 import Control.Monad.Logger (class MonadLogger, log)
 import Control.Monad.RWS (RWST)
-import Control.Monad.Reader (class MonadReader)
-import Control.Monad.State (class MonadState, StateT, execStateT, gets)
-import Control.Monad.Writer (class MonadWriter, tell)
+import Control.Monad.State (StateT, execStateT, gets)
+import Control.Monad.Writer (tell)
 import Control.Plus (empty)
 import Data.Array as Array
 import Data.Foldable (length, traverse_)
@@ -55,6 +54,7 @@ newtype CheckError = CheckError
   , msg :: String
   }
 
+newCheckError :: String -> String -> String -> CheckError
 newCheckError label source msg = CheckError { label, source, msg }
 
 derive instance Newtype CheckError _

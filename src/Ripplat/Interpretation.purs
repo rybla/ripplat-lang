@@ -1,11 +1,11 @@
 module Ripplat.Interpretation where
 
 import Prelude
-import Ripplat.Common
-import Ripplat.Grammr
-import Ripplat.Platform
-import Utility
 
+import Ripplat.Common (class ToError, Error, Log)
+import Ripplat.Grammr (ColdProp, Module(..), Prop(..), PropName, Rule(..), RuleDef(..), RuleName)
+import Ripplat.Platform (Platform)
+import Utility (partitionEither, prop')
 import Control.Monad.Error.Class (class MonadError)
 import Control.Monad.Logger (class MonadLogger)
 import Control.Monad.RWS (RWST)
@@ -18,9 +18,8 @@ import Data.List (List(..))
 import Data.List.Lazy as LazyList
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (fromMaybe, maybe)
-import Data.Monoid (mempty)
-import Data.Newtype (class Newtype, unwrap, wrap)
+import Data.Maybe (fromMaybe)
+import Data.Newtype (class Newtype, unwrap)
 import Data.Tuple.Nested ((/\))
 import Options.Applicative.Internal.Utils (unLines)
 import Text.Pretty (indent)
@@ -51,10 +50,18 @@ type Env =
   }
 
 -- | A lemma is a rule that has at least one hypothesis, called the head hypothesis.
-type Lemma = { name :: RuleName, head :: ColdProp, hyps :: List ColdProp, conc :: ColdProp }
+type Lemma =
+  { name :: RuleName
+  , head :: ColdProp
+  , hyps :: List ColdProp
+  , conc :: ColdProp
+  }
 
 -- | An axiom is a rule that has no hypotheses.
-type Axiom = { name :: RuleName, conc :: ColdProp }
+type Axiom =
+  { name :: RuleName
+  , conc :: ColdProp
+  }
 
 newEnv :: {} -> Env
 newEnv _args =
@@ -68,6 +75,7 @@ newtype InterpretError = InterpretError
   , msg :: String
   }
 
+newInterpretError :: String -> String -> String -> InterpretError
 newInterpretError label source msg = InterpretError { label, source, msg }
 
 derive instance Newtype InterpretError _
@@ -143,4 +151,8 @@ applyLemmaToAxiom
   -> Axiom
   -> T m Boolean
 applyLemmaToAxiom lemma axiom = do
-  pure false
+  if (lemma.head # unwrap).name == (axiom.conc # unwrap).name then
+    pure false
+  else
+    pure false
+

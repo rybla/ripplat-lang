@@ -1,21 +1,17 @@
 module Test.Checking where
 
 import Prelude
-import Ripplat.Checking
-import Ripplat.Common
-import Ripplat.Grammr
-import Test.Spec
 
+import Ripplat.Checking (checkModule, newCtx, newEnv)
+import Ripplat.Common (newError, toError)
+import Ripplat.Grammr (Lat(..), Module(..), Tm(..), Ty'(..), newLatDef, newProp, newPropDef, newRule, newRuleDef)
+import Test.Spec (Spec, describe, it)
 import Control.Monad.Except (class MonadError, throwError)
 import Control.Monad.RWS (RWSResult(..), runRWST)
-import Control.Monad.Reader (runReaderT)
-import Control.Monad.State (evalStateT)
-import Control.Monad.Writer (execWriterT)
 import Data.Foldable (null)
 import Data.Newtype (wrap)
 import Effect.Exception as Exception
 import Test.Common as Common
-import Utility (todo)
 
 spec :: Spec Unit
 spec = describe "Checking" do
@@ -50,7 +46,7 @@ spec = describe "Checking" do
         , ruleDefs:
             [ newRuleDef $ newRule
                 (wrap "Rule1")
-                []
+                mempty
                 (newProp (wrap "Prop1") [ UnitTm ])
             ]
         }
@@ -65,7 +61,7 @@ spec = describe "Checking" do
         , ruleDefs:
             [ newRuleDef $ newRule
                 (wrap "Rule1")
-                []
+                mempty
                 (newProp (wrap "Prop1") [])
             ]
         }
@@ -80,7 +76,7 @@ spec = describe "Checking" do
         , ruleDefs:
             [ newRuleDef $ newRule
                 (wrap "Rule1")
-                []
+                mempty
                 (newProp (wrap "Prop1") [ BoolTm true ])
             ]
         }

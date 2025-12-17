@@ -1,8 +1,8 @@
 module Test.Common where
 
 import Prelude
-import Ripplat.Common
 
+import Ripplat.Common (Error, Log)
 import Control.Monad.Except (class MonadError, ExceptT, runExceptT)
 import Control.Monad.Writer (WriterT, runWriterT)
 import Data.Either (Either(..))

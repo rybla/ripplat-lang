@@ -47,6 +47,7 @@ newtype PropDef = PropDef
   , params :: Array WeirdLat
   }
 
+newPropDef :: PropName -> Array WeirdLat -> PropDef
 newPropDef name params = PropDef { name, params }
 
 derive instance Newtype PropDef _
@@ -60,6 +61,7 @@ newtype RuleDef = RuleDef
   { rule :: Rule
   }
 
+newRuleDef :: Rule -> RuleDef
 newRuleDef rule = RuleDef { rule }
 
 derive instance Newtype RuleDef _
@@ -74,6 +76,7 @@ newtype TyDef = TyDef
   , ty :: WeirdTy
   }
 
+newTyDef :: TyName -> Array TyName -> WeirdTy -> TyDef
 newTyDef name params ty = TyDef { name, params, ty }
 
 derive instance Newtype TyDef _
@@ -89,6 +92,7 @@ newtype LatDef = LatDef
   , lat :: WeirdLat
   }
 
+newLatDef :: LatName -> Array LatName -> WeirdLat -> LatDef
 newLatDef name params lat = LatDef { name, params, lat }
 
 derive instance Newtype LatDef _
@@ -106,6 +110,7 @@ newtype Rule = Rule
   , conc :: ColdProp
   }
 
+newRule :: RuleName -> List ColdProp -> ColdProp -> Rule
 newRule name hyps conc = Rule { name, hyps, conc }
 
 derive instance Newtype Rule _
@@ -124,6 +129,7 @@ newtype Prop id = Prop
   , args :: Array (Tm id)
   }
 
+newProp :: forall id. PropName -> Array (Tm id) -> Prop id
 newProp name args = Prop { name, args }
 
 type ColdProp = Prop TrivialId
@@ -201,7 +207,10 @@ instance Pretty var => Pretty (Tm var) where
 
 newtype Var var = Var { name :: VarName, id :: var }
 
+newVar :: forall var. VarName -> var -> Var var
 newVar name id = Var { name, id }
+
+newColdVar :: VarName -> ColdVar
 newColdVar name = Var { name, id: top } :: ColdVar
 
 type ColdVar = Var TrivialId

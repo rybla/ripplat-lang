@@ -2,12 +2,9 @@ module Ripplat.Checking where
 
 import Prelude
 
-import Ripplat.Common (class ToError, Error, Log, newError, newLog)
-import Ripplat.Grammr (ColdProp, ColdTm, ColdVar, LatDef(..), LatName, Module(..), NormLat, NormTy, NormTy', Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), Tm(..), Ty'(..), TyDef(..), TyName, WeirdLat, WeirdTy, latArity, tyArity)
-import Utility (prop')
 import Control.Monad.Except (throwError, class MonadError)
 import Control.Monad.Logger (class MonadLogger, log)
-import Control.Monad.RWS (RWST)
+import Control.Monad.RWS (RWST, asks)
 import Control.Monad.State (StateT, execStateT, gets)
 import Control.Monad.Writer (tell)
 import Control.Plus (empty)
@@ -20,29 +17,45 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
 import Data.Tuple.Nested ((/\))
 import Options.Applicative.Internal.Utils (unLines)
+import Ripplat.Common (class ToError, Error, Log, newError, newLog)
+import Ripplat.Grammr (ColdProp, ColdTm, ColdVar, LatDef(..), LatName, Module(..), NormLat, NormTy, NormTy', Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), Tm(..), Ty'(..), TyDef(..), TyName, WeirdLat, WeirdTy, latArity, tyArity)
 import Text.Pretty (class Pretty, indent, pretty, quoteCode)
+import Utility (prop')
 
 --------------------------------------------------------------------------------
 
 type T = RWST Ctx (Array CheckError) Env
 
-type Ctx = {}
-
-newCtx :: {} -> Ctx
-newCtx _args =
-  {}
-
-type Env =
+type Ctx = CtxK ()
+type CtxK r =
   { tyDefs :: Map TyName TyDef
   , latDefs :: Map LatName LatDef
   , propDefs :: Map PropName PropDef
+  | r
   }
 
-newEnv :: {} -> Env
+newCtx
+  :: forall r
+   . { module_ :: Module
+     | r
+     }
+  -> Ctx
+newCtx args =
+  let
+    Module md = args.module_
+  in
+    { tyDefs: md.tyDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable
+    , latDefs: md.latDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable
+    , propDefs: md.propDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable
+    }
+
+type Env =
+  {
+  }
+
+newEnv :: forall r. { | r } -> Env
 newEnv _args =
-  { tyDefs: empty
-  , latDefs: empty
-  , propDefs: empty
+  {
   }
 
 newtype CheckError = CheckError
@@ -72,7 +85,7 @@ normalizeTy
   => WeirdTy
   -> T m NormTy
 normalizeTy (AppTy x _ts) = do
-  result <- gets $ view $ prop' @"tyDefs" <<< at x
+  result <- asks $ view $ prop' @"tyDefs" <<< at x
   case result of
     Nothing -> throwError [ newError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\"" ]
     Just (TyDef td) -> normalizeTy td.ty -- TODO: actually need to do substituion of args for params here
@@ -86,7 +99,7 @@ normalizeLatTy
   => WeirdLat
   -> T m NormLat
 normalizeLatTy (AppTy x _ts) = do
-  result <- gets $ view $ prop' @"latDefs" <<< at x
+  result <- asks $ view $ prop' @"latDefs" <<< at x
   case result of
     Nothing -> throwError [ newError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\"" ]
     Just (LatDef ld) -> normalizeLatTy ld.lat -- TODO: actually need to do substituion of args for params here
@@ -101,18 +114,12 @@ checkModule
   => MonadError (Array Error) m
   => Module
   -> T m Unit
-checkModule (Module mdl) = do
-  log $ newLog [ "check" ] $ "module " <> unwrap mdl.name
-
-  prop' @"tyDefs" .= (mdl.tyDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable)
-  prop' @"latDefs" .= (mdl.latDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable)
-  prop' @"propDefs" .= (mdl.propDefs <#> (\it -> (unwrap it).name /\ it) # Map.fromFoldable)
-
-  checkWeirdTyDef `traverse_` mdl.tyDefs
-  checkWeirdLatTyDef `traverse_` mdl.latDefs
-  checkPropDef `traverse_` mdl.propDefs
-  checkRuleDef `traverse_` mdl.ruleDefs
-
+checkModule (Module md) = do
+  log $ newLog [ "check" ] $ "module " <> unwrap md.name
+  checkWeirdTyDef `traverse_` md.tyDefs
+  checkWeirdLatTyDef `traverse_` md.latDefs
+  checkPropDef `traverse_` md.propDefs
+  checkRuleDef `traverse_` md.ruleDefs
   pure unit
 
 --------------------------------------------------------------------------------
@@ -176,7 +183,7 @@ checkWeirdTy
   => WeirdTy
   -> T m Unit
 checkWeirdTy t0@(AppTy x ts) = do
-  result <- gets $ view $ prop' @"tyDefs" <<< at x
+  result <- asks $ view $ prop' @"tyDefs" <<< at x
   case result of
     Nothing -> tell [ newCheckError "unknown_type" (pretty t0) $ "Reference to unknown type " <> quoteCode (pretty x) <> "." ]
     Just td -> do
@@ -195,7 +202,7 @@ checkWeirdLatTy
   => WeirdLat
   -> T m Unit
 checkWeirdLatTy t0@(AppTy x ts) = do
-  result <- gets $ view $ prop' @"latDefs" <<< at x
+  result <- asks $ view $ prop' @"latDefs" <<< at x
   case result of
     Nothing -> tell [ newCheckError "unknown_lattice" (pretty t0) $ "Reference to unknown lattice " <> quoteCode (pretty x) <> "." ]
     Just ld -> do
@@ -214,7 +221,7 @@ checkColdProp
   => ColdProp
   -> T m Unit
 checkColdProp p0@(Prop p) = do
-  result <- gets $ view $ prop' @"propDefs" <<< at p.name
+  result <- asks $ view $ prop' @"propDefs" <<< at p.name
   case result of
     Nothing -> tell [ newCheckError "unknown_prop" (pretty p0) $ "Reference to unknown proposition " <> quoteCode (pretty p.name) <> "." ]
     Just (PropDef pd) -> do

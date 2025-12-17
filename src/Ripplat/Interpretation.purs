@@ -2,16 +2,17 @@ module Ripplat.Interpretation where
 
 import Prelude
 
-import Control.Monad.Except (ExceptT, runExceptT, throwError)
+import Control.Monad.Except (runExceptT, throwError)
 import Control.Monad.RWS (RWSResult(..), RWST, modify_)
-import Control.Monad.State (StateT, execStateT, gets)
+import Control.Monad.State (execStateT, gets)
 import Control.Monad.Trans.Class (lift)
 import Control.Plus (empty)
 import Data.Bifunctor (bimap)
 import Data.Either (Either(..), either, isRight)
 import Data.Either.Nested (type (\/))
-import Data.Foldable (or, traverse_)
+import Data.Foldable (and, or, traverse_)
 import Data.Lens (view, (.=))
+import Data.Lens.At (at)
 import Data.List (List(..))
 import Data.List.Lazy as LazyList
 import Data.Map (Map)
@@ -19,9 +20,12 @@ import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Tuple.Nested ((/\))
+import Data.Unfoldable (none)
 import Options.Applicative.Internal.Utils (unLines)
+import Record as Record
+import Ripplat.Checking as Checking
 import Ripplat.Common (class ToError)
-import Ripplat.Grammr (ColdId, HotId, Module(..), Prop(..), PropName, Rule(..), RuleDef(..), RuleName, Substitution, ColdProp)
+import Ripplat.Grammr (ColdId, ColdProp, ColdTm, HotId, Module(..), NormLat, Prop(..), PropName, Rule(..), RuleDef(..), RuleName, Substitution)
 import Ripplat.Platform (Platform)
 import Ripplat.Unification (unify)
 import Ripplat.Unification as Unification
@@ -33,17 +37,22 @@ import Utility (partitionEither, prop', runRWST', todoK)
 type T m = RWST (Ctx m) (Array InterpretError) Env m
 
 type Ctx m =
-  { platform :: Platform m
-  }
+  Checking.CtxK
+    ( platform :: Platform m
+    )
 
 newCtx
-  :: forall m
+  :: forall m r
    . Monad m
-  => { platform :: Platform m }
+  => { platform :: Platform m
+     , module_ :: Module
+     | r
+     }
   -> Ctx m
 newCtx args =
   { platform: args.platform
   }
+    # Record.union (Checking.newCtx args)
 
 -- | Interpretation environment
 -- | - lemmas are grouped by their first hypothesis's proposition name
@@ -51,7 +60,6 @@ newCtx args =
 type Env =
   { lemmaGroups :: Map PropName (Array ColdLemma)
   , axiomGroups :: Map PropName (Array ColdAxiom)
-  , freshCounter :: Int
   }
 
 -- | A lemma is a rule that has at least one hypothesis, called the head hypothesis.
@@ -78,7 +86,6 @@ newEnv :: {} -> Env
 newEnv _args =
   { lemmaGroups: empty
   , axiomGroups: empty
-  , freshCounter: 0
   }
 
 newtype InterpretError = InterpretError
@@ -139,7 +146,6 @@ learnFixpoint = do
 learn :: forall m. Monad m => T m Boolean
 learn = go `execStateT` false
   where
-  go :: forall m'. Monad m' => StateT Boolean (T m') Unit
   go = do
     lemmaGroups <- lift $ gets $ view $ prop' @"lemmaGroups"
     axiomGroups <- lift $ gets $ view $ prop' @"axiomGroups"
@@ -150,9 +156,8 @@ learn = go `execStateT` false
           modify_ (progress || _)
 
 applyLemmaToAxiom :: forall m. Monad m => ColdLemma -> ColdAxiom -> T m Boolean
-applyLemmaToAxiom lemma0 axiom0 = runExceptT (go lemma0 axiom0) >>= or >>> pure
+applyLemmaToAxiom lemma0 axiom0 = go lemma0 axiom0 # runExceptT >>= or >>> pure
   where
-  go :: forall m'. Monad m' => ColdLemma -> ColdAxiom -> ExceptT Boolean (T m') Boolean
   go lemma axiom = do
     unless ((lemma.head # unwrap).name == (axiom.conc # unwrap).name) $ throwError false
     lemma' <- lift $ heatLemma lemma
@@ -172,16 +177,38 @@ applyLemmaToAxiom lemma0 axiom0 = runExceptT (go lemma0 axiom0) >>= or >>> pure
 -- | Learn a lemma into the state. Returns whether or not this resulted in
 -- | knowledge progress (i.e. the lemma was not subsumed by existing knowledge).
 learnLemma :: forall m. Monad m => ColdLemma -> T m Boolean
-learnLemma = todoK "learnLemma"
+learnLemma lemma = go # runExceptT >>= either pure (const (pure true))
+  where
+  go = do
+    -- check if the lemma's conclusion is subsumed by a known axiom
+    axioms <- lift $ gets $ view $ prop' @"axiomGroups" <<< at (lemma.conc # unwrap).name
+    axioms # fromMaybe none # traverse_ \axiom -> do
+      whenM (lift $ subsumedBy lemma.conc axiom.conc) do
+        throwError false
 
 -- | Learn a axiom into the state. Returns whether or not this resulted in
 -- | knowledge progress (i.e. the axiom was not subsumed by existing knowledge).
 learnAxiom :: forall m. Monad m => ColdAxiom -> T m Boolean
-learnAxiom = todoK "learnAxiom"
+learnAxiom axiom = go # runExceptT >>= either pure (const (pure true))
+  where
+  go = do
+    -- check if the axioms is subsumed by a known axiom
+    axioms <- lift $ gets $ view $ prop' @"axiomGroups" <<< at (axiom.conc # unwrap).name
+    axioms # fromMaybe none # traverse_ \axiom' -> do
+      whenM (lift $ subsumedBy axiom.conc axiom'.conc) do
+        throwError false
 
 -- | Whether or not the first proposition is subsumed by the second proposition.
-subsumedBy :: ColdProp -> ColdProp -> Boolean
-subsumedBy = todoK "subsumedBy"
+subsumedBy :: forall m. Monad m => ColdProp -> ColdProp -> T m Boolean
+subsumedBy (Prop p1) (Prop p2) =
+  -- let l = 
+  pure $ and
+    [ p1.name == p2.name
+    -- , latLeq ?a p1.arg p2.arg
+    ]
+
+latLeq :: NormLat -> ColdTm -> ColdTm -> Boolean
+latLeq = todoK "latLeq"
 
 --------------------------------------------------------------------------------
 

@@ -12,6 +12,8 @@ import Data.Map (Map)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
+import Data.Tuple.Nested (type (/\))
+import Data.Unit (unit)
 import Options.Applicative.Internal.Utils (unLines)
 import Text.Pretty (class Pretty, commas, indent, pretty, unLines2)
 import Utility (todoK)
@@ -145,9 +147,12 @@ derive instance Newtype (Prop id) _
 derive newtype instance Show id => Show (Prop id)
 
 data Ty' lat name
-  = AppTy name (Array (Ty' lat name))
-  | UnitTy lat
-  | BoolTy lat
+  = RefTy name (Array (Ty' lat name))
+  | Ty' lat (Ty'' lat name)
+
+data Ty'' lat name
+  = UnitTy
+  | BoolTy
 
 type WeirdTy' lat = Ty' lat Unit
 type NormTy' lat = Ty' lat Void
@@ -165,9 +170,20 @@ instance (Eq lat, Eq name) => Eq (Ty' lat name) where
   eq x = genericEq x
 
 instance (Pretty name, Pretty lat) => Pretty (Ty' lat name) where
-  pretty (AppTy x ts) = pretty x <> "(" <> (ts # map pretty # commas) <> ")"
-  pretty (UnitTy l) = "Unit@" <> pretty l
-  pretty (BoolTy l) = "Bool@" <> pretty l
+  pretty (RefTy x ts) = pretty x <> "(" <> (ts # map pretty # commas) <> ")"
+  pretty (Ty' l t) = pretty t <> "@" <> pretty l
+
+derive instance Generic (Ty'' lat name) _
+
+instance (Show lat, Show name) => Show (Ty'' lat name) where
+  show x = genericShow x
+
+instance (Eq lat, Eq name) => Eq (Ty'' lat name) where
+  eq x = genericEq x
+
+instance (Pretty name, Pretty lat) => Pretty (Ty'' lat name) where
+  pretty UnitTy = "Unit"
+  pretty BoolTy = "Bool"
 
 type LatTy = Ty' Lat
 
@@ -335,9 +351,12 @@ instance LatOrUnit Unit where
 --------------------------------------------------------------------------------
 
 extractTy :: NormLat -> NormTy
-extractTy (AppTy x _) = absurd x
-extractTy (UnitTy _) = UnitTy unit
-extractTy (BoolTy _) = BoolTy unit
+extractTy (RefTy x _) = absurd x
+extractTy (Ty' _ s) = Ty' unit (extractTy'' s)
+
+extractTy'' :: forall lat. Ty'' lat Void -> Ty'' Unit Void
+extractTy'' UnitTy = UnitTy
+extractTy'' BoolTy = BoolTy
 
 latArity :: LatDef -> Int
 latArity (LatDef td) = td.params # length

@@ -22,7 +22,7 @@ spec = describe "Checking" do
         { name: wrap "ex1"
         , tyDefs: []
         , latDefs: [ newLatDef (wrap "Lat1") [] (UnitTy CanonicalLat) ]
-        , propDefs: [ newPropDef (wrap "Prop1") (AppTy (wrap "Lat1") []) ]
+        , propDefs: [ newPropDef (wrap "Prop1") (RefTy (wrap "Lat1") []) ]
         , ruleDefs: []
         }
     )
@@ -32,7 +32,7 @@ spec = describe "Checking" do
         { name: wrap "ex2"
         , tyDefs: []
         , latDefs: [ newLatDef (wrap "Lat1") [] (UnitTy CanonicalLat) ]
-        , propDefs: [ newPropDef (wrap "Prop1") (AppTy (wrap "Lat666") []) ]
+        , propDefs: [ newPropDef (wrap "Prop1") (RefTy (wrap "Lat666") []) ]
         , ruleDefs: []
         }
     )
@@ -42,7 +42,7 @@ spec = describe "Checking" do
         { name: wrap "ex3"
         , tyDefs: []
         , latDefs: [ newLatDef (wrap "Lat1") [] (UnitTy CanonicalLat) ]
-        , propDefs: [ newPropDef (wrap "Prop1") (AppTy (wrap "Lat1") []) ]
+        , propDefs: [ newPropDef (wrap "Prop1") (RefTy (wrap "Lat1") []) ]
         , ruleDefs:
             [ newRuleDef $ newRule
                 (wrap "Rule1")
@@ -57,7 +57,7 @@ spec = describe "Checking" do
         { name: wrap "ex5"
         , tyDefs: []
         , latDefs: [ newLatDef (wrap "Lat1") [] (UnitTy CanonicalLat) ]
-        , propDefs: [ newPropDef (wrap "Prop1") (AppTy (wrap "Lat1") []) ]
+        , propDefs: [ newPropDef (wrap "Prop1") (RefTy (wrap "Lat1") []) ]
         , ruleDefs:
             [ newRuleDef $ newRule
                 (wrap "Rule1")

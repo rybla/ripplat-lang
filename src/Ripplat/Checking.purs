@@ -2,7 +2,7 @@ module Ripplat.Checking where
 
 import Prelude
 
-import Control.Monad.Except (class MonadError, throwError)
+import Control.Monad.Except (class MonadError)
 import Control.Monad.Logger (class MonadLogger, log)
 import Control.Monad.RWS (RWST, asks)
 import Control.Monad.State (StateT, execStateT, gets)
@@ -18,8 +18,9 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.Tuple.Nested ((/\))
 import Data.Unfoldable (none)
 import Options.Applicative.Internal.Utils (unLines)
-import Ripplat.Common (class ToError, Error, Log, newError, newLog)
-import Ripplat.Grammr (ColdProp, ColdTm, ColdVar, LatDef(..), LatName, Module(..), NormLat, NormTy, NormTy', Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), Tm(..), Ty'(..), TyDef(..), TyName, WeirdLat, WeirdTy, latArity, tyArity)
+import Ripplat.Common (class ToError, Error, Log, newLog)
+import Ripplat.Grammr (ColdProp, ColdTm, ColdVar, LatDef(..), LatName, Module(..), NormTy', Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), Tm(..), Ty'(..), Ty''(..), TyDef(..), TyName, WeirdLat, WeirdTy, latArity, tyArity)
+import Ripplat.Normalization (normalizeLatTy)
 import Text.Pretty (class Pretty, indent, pretty, quoteCode)
 import Utility (prop')
 
@@ -79,22 +80,6 @@ instance ToError CheckError where
 
 --------------------------------------------------------------------------------
 
-normalizeTy :: forall m. MonadError (Array Error) m => WeirdTy -> T m NormTy
-normalizeTy (AppTy x _ts) = do
-  TyDef td <- prop' @"tyDefs" <<< at x # view # asks >>= maybe (throwError [ newError [ "check" ] $ "Reference to unknown type of the name " <> quoteCode (unwrap x) ]) pure
-  normalizeTy td.ty -- TODO: actually need to do substituion of args for params here
-normalizeTy (UnitTy l) = pure $ UnitTy l
-normalizeTy (BoolTy l) = pure $ BoolTy l
-
-normalizeLatTy :: forall m. MonadError (Array Error) m => WeirdLat -> T m NormLat
-normalizeLatTy (AppTy x _ts) = do
-  LatDef ld <- prop' @"latDefs" <<< at x # view # asks >>= maybe (throwError [ newError [ "check" ] $ "Reference to unknown type of the name " <> quoteCode (unwrap x) ]) pure
-  normalizeLatTy ld.lat -- TODO: actually need to do substituion of args for params here
-normalizeLatTy (UnitTy l) = pure $ UnitTy l
-normalizeLatTy (BoolTy l) = pure $ BoolTy l
-
---------------------------------------------------------------------------------
-
 checkModule :: forall m. MonadLogger Log m => MonadError (Array Error) m => Module -> T m Unit
 checkModule (Module md) = do
   log $ newLog [ "check" ] $ "module " <> unwrap md.name
@@ -134,7 +119,7 @@ checkRule (Rule r) = do
   checkColdProp r.conc
 
 checkWeirdTy :: forall m. MonadError (Array Error) m => WeirdTy -> T m Unit
-checkWeirdTy t0@(AppTy x ts) = do
+checkWeirdTy t0@(RefTy x ts) = do
   mb_td <- prop' @"tyDefs" <<< at x # view # asks >>= maybe (tell [ newCheckError "unknown_type" (pretty t0) $ "Reference to unknown type " <> quoteCode (pretty x) <> "." ] >>= const (pure none)) (pure <<< pure)
   case mb_td of
     Nothing -> pure unit
@@ -144,11 +129,11 @@ checkWeirdTy t0@(AppTy x ts) = do
       unless (expectedArity == actualArity) do
         tell [ newCheckError "type_arity" (pretty t0) $ "The type family " <> quoteCode (pretty x) <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
       checkWeirdTy `traverse_` ts
-checkWeirdTy (UnitTy _) = pure unit
-checkWeirdTy (BoolTy _) = pure unit
+checkWeirdTy (Ty' _ UnitTy) = pure unit
+checkWeirdTy (Ty' _ BoolTy) = pure unit
 
 checkWeirdLatTy :: forall m. MonadError (Array Error) m => WeirdLat -> T m Unit
-checkWeirdLatTy t0@(AppTy x ts) = do
+checkWeirdLatTy t0@(RefTy x ts) = do
   md_td <- prop' @"latDefs" <<< at x # view # asks >>= maybe (tell [ newCheckError "unknown_lattice" (pretty t0) $ "Reference to unknown lattice " <> quoteCode (pretty x) <> "." ] >>= const (pure none)) (pure <<< pure)
   case md_td of
     Nothing -> pure unit
@@ -158,8 +143,8 @@ checkWeirdLatTy t0@(AppTy x ts) = do
       unless (expectedArity == actualArity) do
         tell [ newCheckError "lattice_arity" (pretty t0) $ "The lattice family " <> quoteCode (pretty x) <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
       checkWeirdLatTy `traverse_` ts
-checkWeirdLatTy (UnitTy _) = pure unit
-checkWeirdLatTy (BoolTy _) = pure unit
+checkWeirdLatTy (Ty' _ UnitTy) = pure unit
+checkWeirdLatTy (Ty' _ BoolTy) = pure unit
 
 checkColdProp :: forall m. MonadError (Array Error) m => ColdProp -> T m Unit
 checkColdProp p0@(Prop p) = do
@@ -179,7 +164,7 @@ checkColdTerm s t0@(VarTm x) = do
   case result of
     Nothing -> at x .= pure s
     Just s' -> unless (s == s') $ tell [ newCheckError "term_lattice" (pretty t0) $ "The variable " <> quoteCode (pretty t0) <> " was expected to have lattice " <> quoteCode (pretty s) <> " but it was inferred to have type " <> quoteCode (pretty s') <> " in context." ]
-checkColdTerm (UnitTy _) UnitTm = pure unit
-checkColdTerm (BoolTy _) (BoolTm _) = pure unit
+checkColdTerm (Ty' _ UnitTy) UnitTm = pure unit
+checkColdTerm (Ty' _ BoolTy) (BoolTm _) = pure unit
 checkColdTerm s t = tell [ newCheckError "term_lattice" (pretty t) $ "The term " <> quoteCode (pretty t) <> " does not satisfy the lattice " <> quoteCode (pretty s) ]
 

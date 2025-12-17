@@ -172,6 +172,9 @@ learnAxiom axiom = todo ""
 
 --------------------------------------------------------------------------------
 
+-- | Removes the head hypothesis of a lemma, which results in a stronger lemma
+-- | (if there are other hypotheses) or an axiom (if there were no other
+-- | hypotheses).
 decapitateLemma :: forall id. Lemma id -> Lemma id \/ Axiom id
 decapitateLemma lemma = case lemma.hyps of
   Cons h hyps -> Left { name: lemma.name, head: h, hyps, conc: lemma.conc }

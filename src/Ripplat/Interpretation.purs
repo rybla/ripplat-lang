@@ -4,7 +4,7 @@ import Prelude
 
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.RWS (RWSResult(..), RWST, modify_)
-import Control.Monad.State (class MonadState, StateT, execStateT, gets, runStateT)
+import Control.Monad.State (StateT, execStateT, gets)
 import Control.Monad.Trans.Class (lift)
 import Control.Plus (empty)
 import Data.Bifunctor (bimap)
@@ -18,7 +18,6 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
-import Data.Traversable (traverse)
 import Data.Tuple.Nested ((/\))
 import Options.Applicative.Internal.Utils (unLines)
 import Ripplat.Common (class ToError)
@@ -27,7 +26,7 @@ import Ripplat.Platform (Platform)
 import Ripplat.Unification (unify)
 import Ripplat.Unification as Unification
 import Text.Pretty (indent)
-import Utility (partitionEither, prop', runRWST', todo)
+import Utility (partitionEither, prop', runRWST', todoK)
 
 --------------------------------------------------------------------------------
 
@@ -128,7 +127,7 @@ interpretModule (Module md) = do
 -- | Repeatedly learn new knowledge until no more progress can be made.
 learnFixpoint :: forall m. Monad m => T m Unit
 learnFixpoint = do
-  progress <- learn # (_ `execStateT` false)
+  progress <- learn
   if progress then
     learnFixpoint
   else
@@ -136,43 +135,47 @@ learnFixpoint = do
 
 -- | Learn the next generation of knowledge by attempting to apply each lemma to
 -- | each axiom. Returns whether or not knowledge progress was made.
-learn :: forall m. Monad m => StateT Boolean (T m) Unit
-learn = do
-  lemmaGroups <- lift $ gets $ view $ prop' @"lemmaGroups"
-  axiomGroups <- lift $ gets $ view $ prop' @"axiomGroups"
-  lemmaGroups # (Map.toUnfoldable :: _ -> LazyList.List _) # traverse_ \(propName /\ lemmas) -> do
-    lemmas # traverse_ \lemma -> do
-      axiomGroups # Map.lookup propName # fromMaybe mempty # traverse_ \axiom -> do
-        progress <- lift $ applyLemmaToAxiom lemma axiom
-        modify_ (progress || _)
+-- learn :: forall m. Monad m => StateT Boolean (T m) Unit
+learn :: forall m. Monad m => T m Boolean
+learn = go `execStateT` false
+  where
+  go :: forall m'. Monad m' => StateT Boolean (T m') Unit
+  go = do
+    lemmaGroups <- lift $ gets $ view $ prop' @"lemmaGroups"
+    axiomGroups <- lift $ gets $ view $ prop' @"axiomGroups"
+    lemmaGroups # (Map.toUnfoldable :: _ -> LazyList.List _) # traverse_ \(propName /\ lemmas) -> do
+      lemmas # traverse_ \lemma -> do
+        axiomGroups # Map.lookup propName # fromMaybe mempty # traverse_ \axiom -> do
+          progress <- lift $ applyLemmaToAxiom lemma axiom
+          modify_ (progress || _)
 
 applyLemmaToAxiom :: forall m. Monad m => ColdLemma -> ColdAxiom -> T m Boolean
-applyLemmaToAxiom lemma axiom = runExceptT (applyLemmaToAxiom' lemma axiom) >>= or >>> pure
-
-applyLemmaToAxiom' :: forall m. Monad m => ColdLemma -> ColdAxiom -> ExceptT Boolean (T m) Boolean
-applyLemmaToAxiom' lemma axiom = do
-  unless ((lemma.head # unwrap).name == (axiom.conc # unwrap).name) $ throwError false
-  lemma' <- lift $ heatLemma lemma
-  axiom' <- lift $ heatAxiom axiom
-  RWSResult uniEnv uniResult _uniAssignments <- unify ((lemma'.conc # unwrap).arg /\ (axiom'.conc # unwrap).arg)
-    # runExceptT
-    # (_ `runRWST'` (Unification.newCtx {} /\ Unification.newEnv {}))
-  unless (isRight uniResult) $ throwError false
-  -- apply substitution to rest of lemma
-  let lemma'' = substituteLemma uniEnv.sigma lemma'
-  let delemma = decapitateLemma lemma''
-  let delemma' = delemma # bimap freezeLemma freezeAxiom
-  lift $ delemma' # either learnLemma learnAxiom
+applyLemmaToAxiom lemma0 axiom0 = runExceptT (go lemma0 axiom0) >>= or >>> pure
+  where
+  go :: forall m'. Monad m' => ColdLemma -> ColdAxiom -> ExceptT Boolean (T m') Boolean
+  go lemma axiom = do
+    unless ((lemma.head # unwrap).name == (axiom.conc # unwrap).name) $ throwError false
+    lemma' <- lift $ heatLemma lemma
+    axiom' <- lift $ heatAxiom axiom
+    RWSResult uniEnv uniResult _uniAssignments <- unify ((lemma'.conc # unwrap).arg /\ (axiom'.conc # unwrap).arg)
+      # runExceptT
+      # (_ `runRWST'` (Unification.newCtx {} /\ Unification.newEnv {}))
+    unless (isRight uniResult) $ throwError false
+    -- apply substitution to rest of lemma
+    let lemma'' = substituteLemma uniEnv.sigma lemma'
+    let delemma = decapitateLemma lemma''
+    let delemma' = delemma # bimap freezeLemma freezeAxiom
+    lift $ delemma' # either learnLemma learnAxiom
 
 -- | Learn a lemma into the state. Returns whether or not this resulted in
 -- | knowledge progress (i.e. the lemma was not subsumed by existing knowledge).
 learnLemma :: forall m. Monad m => ColdLemma -> T m Boolean
-learnLemma lemma = todo ""
+learnLemma = todoK "learnLemma"
 
 -- | Learn a axiom into the state. Returns whether or not this resulted in
 -- | knowledge progress (i.e. the axiom was not subsumed by existing knowledge).
 learnAxiom :: forall m. Monad m => ColdAxiom -> T m Boolean
-learnAxiom axiom = todo ""
+learnAxiom = todoK "learnAxiom"
 
 --------------------------------------------------------------------------------
 
@@ -187,21 +190,21 @@ decapitateLemma lemma = case lemma.hyps of
 --------------------------------------------------------------------------------
 
 heatLemma :: forall m. Monad m => ColdLemma -> T m HotLemma
-heatLemma = todo ""
+heatLemma = todoK "heatLemma"
 
 heatAxiom :: forall m. Monad m => ColdAxiom -> T m HotAxiom
-heatAxiom = todo ""
+heatAxiom = todoK "heatAxiom"
 
 freezeLemma :: HotLemma -> ColdLemma
-freezeLemma = todo ""
+freezeLemma = todoK "freezeLemma"
 
 freezeAxiom :: HotAxiom -> ColdAxiom
-freezeAxiom = todo ""
+freezeAxiom = todoK "freezeAxiom"
 
 --------------------------------------------------------------------------------
 
 substituteLemma :: Substitution -> HotLemma -> HotLemma
-substituteLemma = todo ""
+substituteLemma = todoK "substituteLemma"
 
 substituteAxiom :: Substitution -> HotAxiom -> HotAxiom
-substituteAxiom = todo ""
+substituteAxiom = todoK "substituteAxiom"

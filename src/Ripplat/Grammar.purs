@@ -9,11 +9,12 @@ import Data.Foldable (length)
 import Data.Generic.Rep (class Generic)
 import Data.List (List)
 import Data.Map (Map)
+import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
 import Options.Applicative.Internal.Utils (unLines)
 import Text.Pretty (class Pretty, commas, indent, pretty, unLines2)
-import Utility (todo)
+import Utility (todo, todoK)
 
 --------------------------------------------------------------------------------
 
@@ -227,13 +228,20 @@ instance Pretty var => Pretty (Var var) where
   pretty (Var v) = unwrap v.name <> pretty v.id
 
 -- TODO: actually, could hold a `Maybe Int` which is initialized to `Nothing`, so that when converting from HotProp to ColdProp we dont accidentally equate things by name if they've been substituted differently
-newtype ColdId = ColdId Unit
+
+-- | Written rules are initialized as `Nothing`. Then derivative rules (i.e.
+-- | lemmas and axioms) will have the numberings that indicate which variables
+-- | of the same name have been unified or not.
+newtype ColdId = ColdId (Maybe Int)
 
 derive instance Newtype ColdId _
 derive newtype instance Show ColdId
 derive newtype instance Eq ColdId
 derive newtype instance Ord ColdId
 derive newtype instance Bounded ColdId
+
+newColdId :: ColdId
+newColdId = ColdId Nothing
 
 instance Pretty ColdId where
   pretty _ = ""
@@ -342,4 +350,4 @@ tyArity (TyDef td) = td.params # length
 type Substitution = Map HotVar HotTm
 
 substituteProp :: Substitution -> HotProp -> HotProp
-substituteProp = todo ""
+substituteProp = todoK "substituteProp"

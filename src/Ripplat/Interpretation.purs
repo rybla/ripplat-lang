@@ -3,8 +3,8 @@ module Ripplat.Interpretation where
 import Prelude
 
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
-import Control.Monad.RWS (RWSResult(..), RWST)
-import Control.Monad.State (gets)
+import Control.Monad.RWS (RWSResult(..), RWST, modify_)
+import Control.Monad.State (class MonadState, StateT, execStateT, gets, runStateT)
 import Control.Monad.Trans.Class (lift)
 import Control.Plus (empty)
 import Data.Bifunctor (bimap)
@@ -18,6 +18,7 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
+import Data.Traversable (traverse)
 import Data.Tuple.Nested ((/\))
 import Options.Applicative.Internal.Utils (unLines)
 import Ripplat.Common (class ToError)
@@ -125,22 +126,23 @@ interpretModule (Module md) = do
 
 learnFixpoint :: forall m. Monad m => T m Unit
 learnFixpoint = do
-  progress <- learn
+  progress <- learn # (_ `execStateT` false)
   if progress then
     learnFixpoint
   else
     pure unit
 
-learn :: forall m. Monad m => T m Boolean
+-- | Learn the next generation of knowledge by attempting to apply each lemma to
+-- | each axiom. Returns whether or not knowledge progress was made.
+learn :: forall m. Monad m => StateT Boolean (T m) Unit
 learn = do
-  lemmaGroups <- gets $ view $ prop' @"lemmaGroups"
-  axiomGroups <- gets $ view $ prop' @"axiomGroups"
+  lemmaGroups <- lift $ gets $ view $ prop' @"lemmaGroups"
+  axiomGroups <- lift $ gets $ view $ prop' @"axiomGroups"
   lemmaGroups # (Map.toUnfoldable :: _ -> LazyList.List _) # traverse_ \(propName /\ lemmas) -> do
     lemmas # traverse_ \lemma -> do
       axiomGroups # Map.lookup propName # fromMaybe mempty # traverse_ \axiom -> do
-        applyLemmaToAxiom lemma axiom
-
-  pure false
+        progress <- lift $ applyLemmaToAxiom lemma axiom
+        modify_ (progress || _)
 
 applyLemmaToAxiom :: forall m. Monad m => ColdLemma -> ColdAxiom -> T m Boolean
 applyLemmaToAxiom lemma axiom = runExceptT (applyLemmaToAxiom' lemma axiom) >>= or >>> pure
@@ -160,13 +162,13 @@ applyLemmaToAxiom' lemma axiom = do
   let delemma' = delemma # bimap freezeLemma freezeAxiom
   lift $ delemma' # either learnLemma learnAxiom
 
--- | Learn a lemma into the state. Returns whether or not the lemma was new
--- | (i.e. not subsumed by existing knowledge).
+-- | Learn a lemma into the state. Returns whether or not this resulted in
+-- | knowledge progress (i.e. the lemma was not subsumed by existing knowledge).
 learnLemma :: forall m. Monad m => ColdLemma -> T m Boolean
 learnLemma lemma = todo ""
 
--- | Learn a axiom into the state. Returns whether or not the axiom was new
--- | (i.e. not subsumed by existing knowledge).
+-- | Learn a axiom into the state. Returns whether or not this resulted in
+-- | knowledge progress (i.e. the axiom was not subsumed by existing knowledge).
 learnAxiom :: forall m. Monad m => ColdAxiom -> T m Boolean
 learnAxiom axiom = todo ""
 

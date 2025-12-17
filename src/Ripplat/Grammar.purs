@@ -8,10 +8,12 @@ import Data.Eq.Generic (genericEq)
 import Data.Foldable (length)
 import Data.Generic.Rep (class Generic)
 import Data.List (List)
+import Data.Map (Map)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
 import Options.Applicative.Internal.Utils (unLines)
 import Text.Pretty (class Pretty, commas, indent, pretty, unLines2)
+import Utility (todo)
 
 --------------------------------------------------------------------------------
 
@@ -132,7 +134,7 @@ newtype Prop id = Prop
 newProp :: forall id. PropName -> Tm id -> Prop id
 newProp name arg = Prop { name, arg }
 
-type ColdProp = Prop TrivialId
+type ColdProp = Prop ColdId
 type HotProp = Prop HotId
 
 instance Pretty id => Pretty (Prop id) where
@@ -189,7 +191,7 @@ data Tm var
   | UnitTm
   | BoolTm Boolean
 
-type ColdTm = Tm TrivialId
+type ColdTm = Tm ColdId
 type HotTm = Tm HotId
 
 derive instance Generic (Tm var) _
@@ -213,7 +215,7 @@ newVar name id = Var { name, id }
 newColdVar :: VarName -> ColdVar
 newColdVar name = Var { name, id: top } :: ColdVar
 
-type ColdVar = Var TrivialId
+type ColdVar = Var ColdId
 type HotVar = Var HotId
 
 derive instance Newtype (Var var) _
@@ -224,15 +226,16 @@ derive newtype instance Ord var => Ord (Var var)
 instance Pretty var => Pretty (Var var) where
   pretty (Var v) = unwrap v.name <> pretty v.id
 
-newtype TrivialId = TrivialId Unit
+-- TODO: actually, could hold a `Maybe Int` which is initialized to `Nothing`, so that when converting from HotProp to ColdProp we dont accidentally equate things by name if they've been substituted differently
+newtype ColdId = ColdId Unit
 
-derive instance Newtype TrivialId _
-derive newtype instance Show TrivialId
-derive newtype instance Eq TrivialId
-derive newtype instance Ord TrivialId
-derive newtype instance Bounded TrivialId
+derive instance Newtype ColdId _
+derive newtype instance Show ColdId
+derive newtype instance Eq ColdId
+derive newtype instance Ord ColdId
+derive newtype instance Bounded ColdId
 
-instance Pretty TrivialId where
+instance Pretty ColdId where
   pretty _ = ""
 
 newtype HotId = HotId Int
@@ -333,3 +336,10 @@ latArity (LatDef td) = td.params # length
 
 tyArity :: TyDef -> Int
 tyArity (TyDef td) = td.params # length
+
+--------------------------------------------------------------------------------
+
+type Substitution = Map HotVar HotTm
+
+substituteProp :: Substitution -> HotProp -> HotProp
+substituteProp = todo ""

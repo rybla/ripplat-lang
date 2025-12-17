@@ -201,7 +201,7 @@ learnAxiom axiom = go # runExceptT >>= either pure (const (pure true))
 -- | Whether or not the first proposition is subsumed by the second proposition.
 subsumedBy :: forall m. Monad m => ColdProp -> ColdProp -> T m Boolean
 subsumedBy (Prop p1) (Prop p2) =
-  -- let l = 
+  -- l <- 
   pure $ and
     [ p1.name == p2.name
     -- , latLeq ?a p1.arg p2.arg

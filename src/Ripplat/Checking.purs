@@ -2,7 +2,7 @@ module Ripplat.Checking where
 
 import Prelude
 
-import Control.Monad.Except (throwError, class MonadError)
+import Control.Monad.Except (class MonadError, throwError)
 import Control.Monad.Logger (class MonadLogger, log)
 import Control.Monad.RWS (RWST, asks)
 import Control.Monad.State (StateT, execStateT, gets)
@@ -13,9 +13,10 @@ import Data.Lens (view, (.=))
 import Data.Lens.At (at)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Tuple.Nested ((/\))
+import Data.Unfoldable (none)
 import Options.Applicative.Internal.Utils (unLines)
 import Ripplat.Common (class ToError, Error, Log, newError, newLog)
 import Ripplat.Grammr (ColdProp, ColdTm, ColdVar, LatDef(..), LatName, Module(..), NormLat, NormTy, NormTy', Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), Tm(..), Ty'(..), TyDef(..), TyName, WeirdLat, WeirdTy, latArity, tyArity)
@@ -85,10 +86,8 @@ normalizeTy
   => WeirdTy
   -> T m NormTy
 normalizeTy (AppTy x _ts) = do
-  result <- asks $ view $ prop' @"tyDefs" <<< at x
-  case result of
-    Nothing -> throwError [ newError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\"" ]
-    Just (TyDef td) -> normalizeTy td.ty -- TODO: actually need to do substituion of args for params here
+  TyDef td <- prop' @"tyDefs" <<< at x # view # asks >>= maybe (throwError [ newError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\"" ]) pure
+  normalizeTy td.ty -- TODO: actually need to do substituion of args for params here
 normalizeTy (UnitTy l) = pure $ UnitTy l
 normalizeTy (BoolTy l) = pure $ BoolTy l
 
@@ -99,10 +98,8 @@ normalizeLatTy
   => WeirdLat
   -> T m NormLat
 normalizeLatTy (AppTy x _ts) = do
-  result <- asks $ view $ prop' @"latDefs" <<< at x
-  case result of
-    Nothing -> throwError [ newError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\"" ]
-    Just (LatDef ld) -> normalizeLatTy ld.lat -- TODO: actually need to do substituion of args for params here
+  LatDef ld <- prop' @"latDefs" <<< at x # view # asks >>= maybe (throwError [ newError [ "check" ] $ "Reference to unknown type of the name \"" <> unwrap x <> "\"" ]) pure
+  normalizeLatTy ld.lat -- TODO: actually need to do substituion of args for params here
 normalizeLatTy (UnitTy l) = pure $ UnitTy l
 normalizeLatTy (BoolTy l) = pure $ BoolTy l
 
@@ -183,9 +180,9 @@ checkWeirdTy
   => WeirdTy
   -> T m Unit
 checkWeirdTy t0@(AppTy x ts) = do
-  result <- asks $ view $ prop' @"tyDefs" <<< at x
-  case result of
-    Nothing -> tell [ newCheckError "unknown_type" (pretty t0) $ "Reference to unknown type " <> quoteCode (pretty x) <> "." ]
+  mb_td <- prop' @"tyDefs" <<< at x # view # asks >>= maybe (tell [ newCheckError "unknown_type" (pretty t0) $ "Reference to unknown type " <> quoteCode (pretty x) <> "." ] >>= const (pure none)) (pure <<< pure)
+  case mb_td of
+    Nothing -> pure unit
     Just td -> do
       let expectedArity = tyArity td
       let actualArity = length ts
@@ -202,9 +199,9 @@ checkWeirdLatTy
   => WeirdLat
   -> T m Unit
 checkWeirdLatTy t0@(AppTy x ts) = do
-  result <- asks $ view $ prop' @"latDefs" <<< at x
-  case result of
-    Nothing -> tell [ newCheckError "unknown_lattice" (pretty t0) $ "Reference to unknown lattice " <> quoteCode (pretty x) <> "." ]
+  md_td <- prop' @"latDefs" <<< at x # view # asks >>= maybe (tell [ newCheckError "unknown_lattice" (pretty t0) $ "Reference to unknown lattice " <> quoteCode (pretty x) <> "." ] >>= const (pure none)) (pure <<< pure)
+  case md_td of
+    Nothing -> pure unit
     Just ld -> do
       let expectedArity = latArity ld
       let actualArity = length ts
@@ -221,9 +218,9 @@ checkColdProp
   => ColdProp
   -> T m Unit
 checkColdProp p0@(Prop p) = do
-  result <- asks $ view $ prop' @"propDefs" <<< at p.name
+  result <- prop' @"propDefs" <<< at p.name # view # asks >>= maybe (tell [ newCheckError "unknown_prop" (pretty p0) $ "Reference to unknown proposition " <> quoteCode (pretty p.name) <> "." ] >>= const (pure none)) (pure >>> pure)
   case result of
-    Nothing -> tell [ newCheckError "unknown_prop" (pretty p0) $ "Reference to unknown proposition " <> quoteCode (pretty p.name) <> "." ]
+    Nothing -> pure unit
     Just (PropDef pd) -> do
       dom <- normalizeLatTy pd.param
       _sigma <- flip execStateT empty do
@@ -241,12 +238,11 @@ checkColdTerm
   -> StateT (Map ColdVar (NormTy' lat)) (T m) Unit
 -- ensure that all uses of a variable are at the same lattice
 checkColdTerm s t0@(VarTm x) = do
-  result <- gets $ view $ at x
+  result <- at x # view # gets
   case result of
     Nothing -> at x .= pure s
-    Just s' -> do
-      unless (s == s') do
-        tell [ newCheckError "term_lattice" (pretty t0) $ "The variable " <> quoteCode (pretty t0) <> " was expected to have lattice " <> quoteCode (pretty s) <> " but it was inferred to have type " <> quoteCode (pretty s') <> " in context." ]
+    Just s' -> unless (s == s') $ tell [ newCheckError "term_lattice" (pretty t0) $ "The variable " <> quoteCode (pretty t0) <> " was expected to have lattice " <> quoteCode (pretty s) <> " but it was inferred to have type " <> quoteCode (pretty s') <> " in context." ]
 checkColdTerm (UnitTy _) UnitTm = pure unit
 checkColdTerm (BoolTy _) (BoolTm _) = pure unit
 checkColdTerm s t = tell [ newCheckError "term_lattice" (pretty t) $ "The term " <> quoteCode (pretty t) <> " does not satisfy the lattice " <> quoteCode (pretty s) ]
+

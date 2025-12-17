@@ -24,7 +24,7 @@ main _pf md = do
 
   -- checking
 
-  RWSResult _ _ chErrs <- runRWST (Checking.checkModule md) (Checking.newCtx {}) (Checking.newEnv {})
+  RWSResult _ _ chErrs <- runRWST (Checking.checkModule md) (Checking.newCtx { module_: md }) (Checking.newEnv {})
 
   unless (null chErrs) do
     throwError $ map (toError [ "check" ]) chErrs

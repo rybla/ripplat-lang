@@ -73,7 +73,7 @@ newSuccessTest
   => Module
   -> m Unit
 newSuccessTest md = Common.newSuccessTest do
-  RWSResult _ _ errs <- runRWST (checkModule md) (newCtx {}) (newEnv {})
+  RWSResult _ _ errs <- runRWST (checkModule md) (newCtx { module_: md }) (newEnv {})
 
   unless (null errs) do
     throwError $ map (toError [ "check" ]) errs
@@ -86,7 +86,7 @@ newFailureTest
   => Module
   -> m Unit
 newFailureTest md = Common.newSuccessTest do
-  RWSResult _ _ errs <- runRWST (checkModule md) (newCtx {}) (newEnv {})
+  RWSResult _ _ errs <- runRWST (checkModule md) (newCtx { module_: md }) (newEnv {})
 
   when (null errs) do
     throwError $ [ newError [ "check" ] "Expected errors" ]

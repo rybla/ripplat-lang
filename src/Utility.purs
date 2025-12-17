@@ -2,6 +2,7 @@ module Utility where
 
 import Prelude
 
+import Control.Monad.RWS (RWSResult, RWST, runRWST)
 import Data.Either (either)
 import Data.Either.Nested (type (\/))
 import Data.Foldable (class Foldable, foldl)
@@ -29,3 +30,7 @@ partitionEither
 partitionEither f = foldl
   (\(bs /\ cs) -> either (\b -> (Cons b bs /\ cs)) (\c -> (bs /\ Cons c cs)) <<< f)
   (none /\ none)
+
+runRWST' :: forall r w s m a. RWST r w s m a -> (r /\ s) -> m (RWSResult s a w)
+runRWST' m (r /\ s) = runRWST m r s
+

@@ -44,18 +44,18 @@ instance Pretty Module where
 
 newtype PropDef = PropDef
   { name :: PropName
-  , params :: Array WeirdLat
+  , param :: WeirdLat
   }
 
-newPropDef :: PropName -> Array WeirdLat -> PropDef
-newPropDef name params = PropDef { name, params }
+newPropDef :: PropName -> WeirdLat -> PropDef
+newPropDef name param = PropDef { name, param }
 
 derive instance Newtype PropDef _
 derive newtype instance Show PropDef
 
 instance Pretty PropDef where
   pretty (PropDef pd) =
-    "prop " <> unwrap pd.name <> "(" <> (pd.params # map pretty # commas) <> ")"
+    "prop " <> unwrap pd.name <> "(" <> (pd.param # pretty) <> ")"
 
 newtype RuleDef = RuleDef
   { rule :: Rule
@@ -126,17 +126,17 @@ instance Pretty Rule where
 
 newtype Prop id = Prop
   { name :: PropName
-  , args :: Array (Tm id)
+  , arg :: Tm id
   }
 
-newProp :: forall id. PropName -> Array (Tm id) -> Prop id
-newProp name args = Prop { name, args }
+newProp :: forall id. PropName -> Tm id -> Prop id
+newProp name arg = Prop { name, arg }
 
 type ColdProp = Prop TrivialId
 type HotProp = Prop HotId
 
 instance Pretty id => Pretty (Prop id) where
-  pretty (Prop p) = unwrap p.name <> "(" <> (p.args # map pretty # commas) <> ")"
+  pretty (Prop p) = unwrap p.name <> "(" <> (p.arg # pretty) <> ")"
 
 derive instance Newtype (Prop id) _
 derive newtype instance Show id => Show (Prop id)
@@ -333,7 +333,3 @@ latArity (LatDef td) = td.params # length
 
 tyArity :: TyDef -> Int
 tyArity (TyDef td) = td.params # length
-
-propArity :: PropDef -> Int
-propArity (PropDef pd) = pd.params # length
-

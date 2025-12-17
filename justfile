@@ -6,3 +6,6 @@ build:
   bun run build
 
 rebuild: clean build
+
+test:
+  bun run test

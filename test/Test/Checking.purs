@@ -22,7 +22,7 @@ spec = describe "Checking" do
         { name: wrap "ex1"
         , tyDefs: []
         , latDefs: [ newLatDef (wrap "Lat1") [] (UnitTy CanonicalLat) ]
-        , propDefs: [ newPropDef (wrap "Prop1") [ AppTy (wrap "Lat1") [] ] ]
+        , propDefs: [ newPropDef (wrap "Prop1") (AppTy (wrap "Lat1") []) ]
         , ruleDefs: []
         }
     )
@@ -32,7 +32,7 @@ spec = describe "Checking" do
         { name: wrap "ex2"
         , tyDefs: []
         , latDefs: [ newLatDef (wrap "Lat1") [] (UnitTy CanonicalLat) ]
-        , propDefs: [ newPropDef (wrap "Prop1") [ AppTy (wrap "Lat666") [] ] ]
+        , propDefs: [ newPropDef (wrap "Prop1") (AppTy (wrap "Lat666") []) ]
         , ruleDefs: []
         }
     )
@@ -42,27 +42,12 @@ spec = describe "Checking" do
         { name: wrap "ex3"
         , tyDefs: []
         , latDefs: [ newLatDef (wrap "Lat1") [] (UnitTy CanonicalLat) ]
-        , propDefs: [ newPropDef (wrap "Prop1") [ AppTy (wrap "Lat1") [] ] ]
+        , propDefs: [ newPropDef (wrap "Prop1") (AppTy (wrap "Lat1") []) ]
         , ruleDefs:
             [ newRuleDef $ newRule
                 (wrap "Rule1")
                 mempty
-                (newProp (wrap "Prop1") [ UnitTm ])
-            ]
-        }
-    )
-
-  it "ex4" $ newFailureTest
-    ( Module
-        { name: wrap "ex4"
-        , tyDefs: []
-        , latDefs: [ newLatDef (wrap "Lat1") [] (UnitTy CanonicalLat) ]
-        , propDefs: [ newPropDef (wrap "Prop1") [ AppTy (wrap "Lat1") [] ] ]
-        , ruleDefs:
-            [ newRuleDef $ newRule
-                (wrap "Rule1")
-                mempty
-                (newProp (wrap "Prop1") [])
+                (newProp (wrap "Prop1") UnitTm)
             ]
         }
     )
@@ -72,12 +57,12 @@ spec = describe "Checking" do
         { name: wrap "ex5"
         , tyDefs: []
         , latDefs: [ newLatDef (wrap "Lat1") [] (UnitTy CanonicalLat) ]
-        , propDefs: [ newPropDef (wrap "Prop1") [ AppTy (wrap "Lat1") [] ] ]
+        , propDefs: [ newPropDef (wrap "Prop1") (AppTy (wrap "Lat1") []) ]
         , ruleDefs:
             [ newRuleDef $ newRule
                 (wrap "Rule1")
                 mempty
-                (newProp (wrap "Prop1") [ BoolTm true ])
+                (newProp (wrap "Prop1") (BoolTm true))
             ]
         }
     )

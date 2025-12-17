@@ -26,20 +26,24 @@ type Env =
 
 type T m = ExceptT Problem (RWST Ctx (Array (HotVar /\ HotTm)) Env m)
 
+unify :: forall m. Monad m => Problem -> T m Unit
+unify p =
+  traceProblem p do
+    unify' p
+
+unify' :: forall m. Monad m => Problem -> T m Unit
+unify' (VarTm x1 /\ t2) = prop' @"sigma" %= Map.insert x1 t2
+unify' (t1 /\ VarTm x2) = prop' @"sigma" %= Map.insert x2 t1
+unify' (UnitTm /\ UnitTm) = pure unit
+unify' (BoolTm b1 /\ BoolTm b2) | b1 == b2 = pure unit
+unify' p = throwError p
+
 assignVar :: forall m. Monad m => HotVar -> HotTm -> T m Unit
 assignVar x t = do
   prop' @"sigma" %= Map.insert x t
 
-traceProblem :: forall m a. Monad m => HotTm -> HotTm -> T m a -> T m a
-traceProblem t1 t2 m =
+traceProblem :: forall m a. Monad m => Problem -> T m a -> T m a
+traceProblem p m =
   local
-    (prop' @"path" %~ Cons (t1 /\ t2))
+    (prop' @"path" %~ Cons p)
     m
-
-unify :: forall m. Monad m => Problem -> T m Unit
-unify (VarTm x1 /\ t2) = prop' @"sigma" %= Map.insert x1 t2
-unify (t1 /\ VarTm x2) = prop' @"sigma" %= Map.insert x2 t1
-unify (UnitTm /\ UnitTm) = pure unit
-unify (BoolTm b1 /\ BoolTm b2) | b1 == b2 = pure unit
-unify p = throwError p
-

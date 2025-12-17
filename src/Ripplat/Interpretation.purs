@@ -2,17 +2,14 @@ module Ripplat.Interpretation where
 
 import Prelude
 
-import Ripplat.Common (class ToError, Error, Log)
-import Ripplat.Grammr (ColdProp, Module(..), Prop(..), PropName, Rule(..), RuleDef(..), RuleName)
-import Ripplat.Platform (Platform)
-import Utility (partitionEither, prop')
 import Control.Monad.Error.Class (class MonadError)
+import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Logger (class MonadLogger)
 import Control.Monad.RWS (RWST)
 import Control.Monad.State (gets)
 import Control.Plus (empty)
 import Data.Either (Either(..))
-import Data.Foldable (traverse_)
+import Data.Foldable (or, traverse_)
 import Data.Lens (view, (.=))
 import Data.List (List(..))
 import Data.List.Lazy as LazyList
@@ -22,7 +19,11 @@ import Data.Maybe (fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Tuple.Nested ((/\))
 import Options.Applicative.Internal.Utils (unLines)
+import Ripplat.Common (class ToError, Error, Log)
+import Ripplat.Grammr (ColdProp, Module(..), Prop(..), PropName, Rule(..), RuleDef(..), RuleName)
+import Ripplat.Platform (Platform)
 import Text.Pretty (indent)
+import Utility (partitionEither, prop')
 
 --------------------------------------------------------------------------------
 
@@ -150,9 +151,18 @@ applyLemmaToAxiom
   => Lemma
   -> Axiom
   -> T m Boolean
-applyLemmaToAxiom lemma axiom = do
-  if (lemma.head # unwrap).name == (axiom.conc # unwrap).name then
-    pure false
-  else
-    pure false
+applyLemmaToAxiom lemma axiom = runExceptT (applyLemmaToAxiom' lemma axiom) >>= or >>> pure
 
+applyLemmaToAxiom'
+  :: forall m
+   . MonadLogger Log m
+  => MonadError (Array Error) m
+  => Lemma
+  -> Axiom
+  -> ExceptT Boolean (T m) Boolean
+applyLemmaToAxiom' lemma axiom = do
+  unless ((lemma.head # unwrap).name == (axiom.conc # unwrap).name) $ throwError false
+  -- _ <- unify (?a /\ ?A)
+  --   # runExceptT
+  --   # (_ `runRWST'` ?a)
+  pure false

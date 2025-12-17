@@ -3,7 +3,7 @@ module Ripplat.Checking where
 import Prelude
 
 import Ripplat.Common (class ToError, Error, Log, newError, newLog)
-import Ripplat.Grammr (ColdProp, ColdTm, ColdVar, LatDef(..), LatName, Module(..), NormLat, NormTy, NormTy', Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), Tm(..), Ty'(..), TyDef(..), TyName, WeirdLat, WeirdTy, latArity, propArity, tyArity)
+import Ripplat.Grammr (ColdProp, ColdTm, ColdVar, LatDef(..), LatName, Module(..), NormLat, NormTy, NormTy', Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), Tm(..), Ty'(..), TyDef(..), TyName, WeirdLat, WeirdTy, latArity, tyArity)
 import Utility (prop')
 import Control.Monad.Except (throwError, class MonadError)
 import Control.Monad.Logger (class MonadLogger, log)
@@ -11,7 +11,6 @@ import Control.Monad.RWS (RWST)
 import Control.Monad.State (StateT, execStateT, gets)
 import Control.Monad.Writer (tell)
 import Control.Plus (empty)
-import Data.Array as Array
 import Data.Foldable (length, traverse_)
 import Data.Lens (view, (.=))
 import Data.Lens.At (at)
@@ -19,8 +18,6 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
-import Data.Traversable (traverse)
-import Data.Tuple (uncurry)
 import Data.Tuple.Nested ((/\))
 import Options.Applicative.Internal.Utils (unLines)
 import Text.Pretty (class Pretty, indent, pretty, quoteCode)
@@ -149,7 +146,7 @@ checkPropDef
   -> T m Unit
 checkPropDef (PropDef pd) = do
   log $ newLog [ "check" ] $ "prop " <> unwrap pd.name
-  checkWeirdLatTy `traverse_` pd.params
+  checkWeirdLatTy pd.param
 
 checkRuleDef
   :: forall m
@@ -221,13 +218,9 @@ checkColdProp p0@(Prop p) = do
   case result of
     Nothing -> tell [ newCheckError "unknown_prop" (pretty p0) $ "Reference to unknown proposition " <> quoteCode (pretty p.name) <> "." ]
     Just (PropDef pd) -> do
-      let expectedArity = PropDef pd # propArity
-      let actualArity = p.args # length
-      unless (expectedArity == actualArity) do
-        tell [ newCheckError "prop_arity" (pretty p0) $ "The proposition " <> quoteCode (pretty p.name) <> " has arity " <> show expectedArity <> " but was only provided " <> show actualArity <> " arguments." ]
-      doms <- normalizeLatTy `traverse` pd.params
+      dom <- normalizeLatTy pd.param
       _sigma <- flip execStateT empty do
-        uncurry checkColdTerm `traverse_` (doms `Array.zip` p.args)
+        checkColdTerm dom p.arg
       pure unit
 
 checkColdTerm

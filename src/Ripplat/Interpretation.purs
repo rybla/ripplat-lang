@@ -102,6 +102,7 @@ instance ToError InterpretError where
 
 --------------------------------------------------------------------------------
 
+-- | Interpret a module by learning every consequence of its rules.
 interpretModule :: forall m. Monad m => Module -> T m Unit
 interpretModule (Module md) = do
   let
@@ -124,6 +125,7 @@ interpretModule (Module md) = do
   prop' @"axiomGroups" .= (axiomGroups # Map.fromFoldableWith append)
   learnFixpoint
 
+-- | Repeatedly learn new knowledge until no more progress can be made.
 learnFixpoint :: forall m. Monad m => T m Unit
 learnFixpoint = do
   progress <- learn # (_ `execStateT` false)

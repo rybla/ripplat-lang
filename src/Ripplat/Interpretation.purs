@@ -21,7 +21,7 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.Tuple.Nested ((/\))
 import Options.Applicative.Internal.Utils (unLines)
 import Ripplat.Common (class ToError)
-import Ripplat.Grammr (ColdId, HotId, Module(..), Prop(..), PropName, Rule(..), RuleDef(..), RuleName, Substitution)
+import Ripplat.Grammr (ColdId, HotId, Module(..), Prop(..), PropName, Rule(..), RuleDef(..), RuleName, Substitution, ColdProp)
 import Ripplat.Platform (Platform)
 import Ripplat.Unification (unify)
 import Ripplat.Unification as Unification
@@ -167,6 +167,8 @@ applyLemmaToAxiom lemma0 axiom0 = runExceptT (go lemma0 axiom0) >>= or >>> pure
     let delemma' = delemma # bimap freezeLemma freezeAxiom
     lift $ delemma' # either learnLemma learnAxiom
 
+--------------------------------------------------------------------------------
+
 -- | Learn a lemma into the state. Returns whether or not this resulted in
 -- | knowledge progress (i.e. the lemma was not subsumed by existing knowledge).
 learnLemma :: forall m. Monad m => ColdLemma -> T m Boolean
@@ -176,6 +178,10 @@ learnLemma = todoK "learnLemma"
 -- | knowledge progress (i.e. the axiom was not subsumed by existing knowledge).
 learnAxiom :: forall m. Monad m => ColdAxiom -> T m Boolean
 learnAxiom = todoK "learnAxiom"
+
+-- | Whether or not the first proposition is subsumed by the second proposition.
+subsumedBy :: ColdProp -> ColdProp -> Boolean
+subsumedBy = todoK "subsumedBy"
 
 --------------------------------------------------------------------------------
 

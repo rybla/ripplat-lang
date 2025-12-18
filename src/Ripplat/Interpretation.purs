@@ -2,13 +2,14 @@ module Ripplat.Interpretation where
 
 import Prelude
 
-import Control.Monad.Except (class MonadError, runExceptT, throwError)
+import Control.Monad.Except (class MonadError, ExceptT, runExceptT, throwError)
 import Control.Monad.RWS (RWSResult(..), RWST, modify_)
 import Control.Monad.Reader (asks)
-import Control.Monad.State (execStateT, gets)
+import Control.Monad.State (StateT, evalStateT, execStateT, gets)
 import Control.Monad.Trans.Class (lift)
 import Control.Plus (empty)
 import Data.Bifunctor (bimap)
+import Data.Bitraversable (bitraverse)
 import Data.Either (Either(..), either, isRight)
 import Data.Either.Nested (type (\/))
 import Data.Foldable (and, or, traverse_)
@@ -18,18 +19,20 @@ import Data.List (List(..))
 import Data.List.Lazy as LazyList
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (class Newtype, unwrap)
+import Data.Traversable (traverse)
 import Data.Tuple.Nested ((/\))
 import Data.Unfoldable (none)
 import Options.Applicative.Internal.Utils (unLines)
 import Record as Record
 import Ripplat.Checking as Checking
 import Ripplat.Common (class ToError, Error, newError)
-import Ripplat.Grammr (ColdId, ColdProp, HotId, Module(..), Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), RuleName, Substitution)
+import Ripplat.Grammr (Axiom, ColdAxiom, ColdId(..), ColdLemma, ColdProp, ColdTm, ColdVar, HotId(..), HotLemma, HotProp, HotTm, HotVar, Lemma, Module(..), Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), RuleName, Substitution, Tm(..), Var(..), VarName, HotAxiom)
 import Ripplat.Lattice (latLeq)
 import Ripplat.Normalization (normalizeLatTy)
 import Ripplat.Platform (Platform)
+import Ripplat.Thermodynamics (coolAxiom, coolLemma, heatAxiom, heatLemma)
 import Ripplat.Unification (unify)
 import Ripplat.Unification as Unification
 import Text.Pretty (indent, quoteCode)
@@ -64,26 +67,6 @@ type Env =
   { lemmaGroups :: Map PropName (Array ColdLemma)
   , axiomGroups :: Map PropName (Array ColdAxiom)
   }
-
--- | A lemma is a rule that has at least one hypothesis, called the head hypothesis.
-type Lemma id =
-  { name :: RuleName
-  , head :: Prop id
-  , hyps :: List (Prop id)
-  , conc :: Prop id
-  }
-
-type ColdLemma = Lemma ColdId
-type HotLemma = Lemma HotId
-
--- | An axiom is a rule that has no hypotheses.
-type Axiom id =
-  { name :: RuleName
-  , conc :: Prop id
-  }
-
-type ColdAxiom = Axiom ColdId
-type HotAxiom = Axiom HotId
 
 newEnv :: {} -> Env
 newEnv _args =
@@ -159,21 +142,22 @@ learn = go `execStateT` false
           modify_ (progress || _)
 
 applyLemmaToAxiom :: forall m. MonadError (Array Error) m => ColdLemma -> ColdAxiom -> T m Boolean
-applyLemmaToAxiom lemma0 axiom0 = go lemma0 axiom0 # runExceptT >>= or >>> pure
+applyLemmaToAxiom lemma axiom = go # runExceptT >>= or >>> pure
   where
-  go lemma axiom = do
+  go = do
     unless ((lemma.head # unwrap).name == (axiom.conc # unwrap).name) $ throwError false
-    lemma' <- lift $ heatLemma lemma
-    axiom' <- lift $ heatAxiom axiom
-    RWSResult uniEnv uniResult _uniAssignments <- unify ((lemma'.conc # unwrap).arg /\ (axiom'.conc # unwrap).arg)
-      # runExceptT
-      # (_ `runRWST'` (Unification.newCtx {} /\ Unification.newEnv {}))
+    lemma' <- lift $ heatLemma lemma `evalStateT` Map.empty
+    axiom' <- lift $ heatAxiom axiom `evalStateT` Map.empty
+    RWSResult uniEnv uniResult _uniAssignments <-
+      unify ((lemma'.conc # unwrap).arg /\ (axiom'.conc # unwrap).arg)
+        # runExceptT
+        # (_ `runRWST'` (Unification.newCtx {} /\ Unification.newEnv {}))
     unless (isRight uniResult) $ throwError false
     -- apply substitution to rest of lemma
     let lemma'' = substituteLemma uniEnv.sigma lemma'
     let delemma = decapitateLemma lemma''
-    let delemma' = delemma # bimap freezeLemma freezeAxiom
-    lift $ delemma' # either learnLemma learnAxiom
+    delemma' <- delemma # bitraverse coolLemma coolAxiom
+    delemma' # either (lift <<< learnLemma) (lift <<< learnAxiom)
 
 --------------------------------------------------------------------------------
 
@@ -220,22 +204,6 @@ decapitateLemma :: forall id. Lemma id -> Lemma id \/ Axiom id
 decapitateLemma lemma = case lemma.hyps of
   Cons h hyps -> Left { name: lemma.name, head: h, hyps, conc: lemma.conc }
   Nil -> Right { name: lemma.name, conc: lemma.conc }
-
---------------------------------------------------------------------------------
-
-heatLemma :: forall m. Monad m => ColdLemma -> T m HotLemma
-heatLemma = todoK "heatLemma"
-
-heatAxiom :: forall m. Monad m => ColdAxiom -> T m HotAxiom
-heatAxiom = todoK "heatAxiom"
-
-freezeLemma :: HotLemma -> ColdLemma
-freezeLemma = todoK "freezeLemma"
-
-freezeAxiom :: HotAxiom -> ColdAxiom
-freezeAxiom = todoK "freezeAxiom"
-
---------------------------------------------------------------------------------
 
 substituteLemma :: Substitution -> HotLemma -> HotLemma
 substituteLemma = todoK "substituteLemma"

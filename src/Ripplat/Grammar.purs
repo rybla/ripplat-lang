@@ -12,8 +12,6 @@ import Data.Map (Map)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
-import Data.Tuple.Nested (type (/\))
-import Data.Unit (unit)
 import Options.Applicative.Internal.Utils (unLines)
 import Text.Pretty (class Pretty, commas, indent, pretty, unLines2)
 import Utility (todoK)
@@ -150,6 +148,7 @@ data Ty' lat name
   = RefTy name (Array (Ty' lat name))
   | Ty' lat (Ty'' lat name)
 
+data Ty'' :: forall k1 k2. k1 -> k2 -> Type
 data Ty'' lat name
   = UnitTy
   | BoolTy
@@ -247,7 +246,10 @@ instance Pretty var => Pretty (Var var) where
 
 -- | Written rules are initialized as `Nothing`. Then derivative rules (i.e.
 -- | lemmas and axioms) will have the numberings that indicate which variables
--- | of the same name have been unified or not.
+-- | of the same name have been unified or not. Hot identifiers are cooled down
+-- | after unification is completed so that identifiers don't keep increasing
+-- | indefinitely when generating fresh identifiers. Cold identifiers are
+-- | locally unique to a rule problem.
 newtype ColdId = ColdId (Maybe Int)
 
 derive instance Newtype ColdId _
@@ -262,6 +264,8 @@ newColdId = ColdId Nothing
 instance Pretty ColdId where
   pretty _ = ""
 
+-- | Hot identifiers are in intermediate or immediate results from unification.
+-- | Hot idenfiers are locally unique to a proposition unification problem.
 newtype HotId = HotId Int
 
 derive instance Newtype HotId _
@@ -338,6 +342,30 @@ instance Pretty VarName where
   pretty = unwrap
 
 --------------------------------------------------------------------------------
+
+-- | A lemma is a rule that has at least one hypothesis, called the head hypothesis.
+type Lemma id =
+  { name :: RuleName
+  , head :: Prop id
+  , hyps :: List (Prop id)
+  , conc :: Prop id
+  }
+
+type ColdLemma = Lemma ColdId
+type HotLemma = Lemma HotId
+
+-- | An axiom is a rule that has no hypotheses.
+type Axiom id =
+  { name :: RuleName
+  , conc :: Prop id
+  }
+
+type ColdAxiom = Axiom ColdId
+type HotAxiom = Axiom HotId
+
+--------------------------------------------------------------------------------
+
+-- TODO: is this still being used anywhere?
 
 class LatOrUnit lat where
   fromLatOrUnit :: forall f. Functor f => f lat -> f Lat \/ f Unit

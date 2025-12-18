@@ -6,12 +6,14 @@ import Control.Monad.Except (class MonadError, throwError)
 import Control.Monad.RWS (RWSResult(..), runRWST)
 import Data.Foldable (null)
 import Data.Newtype (wrap)
+import Data.Tuple (Tuple(..))
 import Effect.Exception as Exception
 import Ripplat.Checking (checkModule, newCtx, newEnv)
 import Ripplat.Common (newError, toError)
 import Ripplat.Grammr (Lat(..), Module(..), Tm(..), Ty'(..), Ty''(..), newLatDef, newProp, newPropDef, newRule, newRuleDef)
 import Test.Common as Common
 import Test.Spec (Spec, describe, it)
+import Utility (runRWST')
 
 spec :: Spec Unit
 spec = describe "Checking" do
@@ -21,7 +23,7 @@ spec = describe "Checking" do
     ( Module
         { name: wrap "ex1"
         , tyDefs: []
-        , latDefs: [ newLatDef (wrap "Lat1") [] (Ty'  CanonicalLat UnitTy) ]
+        , latDefs: [ newLatDef (wrap "Lat1") [] (Ty' CanonicalLat UnitTy) ]
         , propDefs: [ newPropDef (wrap "Prop1") (RefTy (wrap "Lat1") []) ]
         , ruleDefs: []
         }
@@ -31,7 +33,7 @@ spec = describe "Checking" do
     ( Module
         { name: wrap "ex2"
         , tyDefs: []
-        , latDefs: [ newLatDef (wrap "Lat1") [] (Ty'  CanonicalLat UnitTy) ]
+        , latDefs: [ newLatDef (wrap "Lat1") [] (Ty' CanonicalLat UnitTy) ]
         , propDefs: [ newPropDef (wrap "Prop1") (RefTy (wrap "Lat666") []) ]
         , ruleDefs: []
         }
@@ -41,7 +43,7 @@ spec = describe "Checking" do
     ( Module
         { name: wrap "ex3"
         , tyDefs: []
-        , latDefs: [ newLatDef (wrap "Lat1") [] (Ty'  CanonicalLat UnitTy) ]
+        , latDefs: [ newLatDef (wrap "Lat1") [] (Ty' CanonicalLat UnitTy) ]
         , propDefs: [ newPropDef (wrap "Prop1") (RefTy (wrap "Lat1") []) ]
         , ruleDefs:
             [ newRuleDef $ newRule
@@ -56,7 +58,7 @@ spec = describe "Checking" do
     ( Module
         { name: wrap "ex5"
         , tyDefs: []
-        , latDefs: [ newLatDef (wrap "Lat1") [] (Ty'  CanonicalLat UnitTy) ]
+        , latDefs: [ newLatDef (wrap "Lat1") [] (Ty' CanonicalLat UnitTy) ]
         , propDefs: [ newPropDef (wrap "Prop1") (RefTy (wrap "Lat1") []) ]
         , ruleDefs:
             [ newRuleDef $ newRule
@@ -73,7 +75,11 @@ newSuccessTest
   => Module
   -> m Unit
 newSuccessTest md = Common.newSuccessTest do
-  RWSResult _ _ errs <- runRWST (checkModule md) (newCtx { module_: md }) (newEnv {})
+  RWSResult _ _ errs <- checkModule md
+    `runRWST'`
+      Tuple
+        (newCtx { module_: md })
+        (newEnv {})
 
   unless (null errs) do
     throwError $ map (toError [ "check" ]) errs

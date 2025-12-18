@@ -9,3 +9,8 @@ newtype Platform (m :: Type -> Type) = Platform
 
 derive instance Newtype (Platform m) _
 
+mockPlatform :: forall m. Monad m => Platform m
+mockPlatform = Platform
+  { placeholder: unit
+  }
+

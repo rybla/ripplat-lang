@@ -357,6 +357,7 @@ type Lemma id =
 type ColdLemma = Lemma ColdId
 type HotLemma = Lemma HotId
 
+-- TODO: rename this from "Axiom" since they aren't _assumed_, they can be inferred. Could be "atomics" or "unconditionals" or something, which indicates they don't have hypotheses
 -- | An axiom is a rule that has no hypotheses.
 type Axiom id =
   { name :: RuleName

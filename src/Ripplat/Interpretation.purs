@@ -2,16 +2,14 @@ module Ripplat.Interpretation where
 
 import Prelude
 
-import Control.Monad.Except (class MonadError, ExceptT, runExceptT, throwError)
+import Control.Monad.Except (class MonadError, runExceptT, throwError)
 import Control.Monad.RWS (RWSResult(..), RWST, modify_)
-import Control.Monad.Reader (asks)
-import Control.Monad.State (StateT, evalStateT, execStateT, gets)
+import Control.Monad.Reader (asks, runReaderT)
+import Control.Monad.State (evalStateT, execStateT, gets)
 import Control.Monad.Trans.Class (lift)
 import Control.Plus (empty)
-import Data.Bifunctor (bimap)
 import Data.Bitraversable (bitraverse)
 import Data.Either (Either(..), either, isRight)
-import Data.Either.Nested (type (\/))
 import Data.Foldable (and, or, traverse_)
 import Data.Lens (view, (.=))
 import Data.Lens.At (at)
@@ -19,16 +17,15 @@ import Data.List (List(..))
 import Data.List.Lazy as LazyList
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.Maybe (fromMaybe, maybe)
 import Data.Newtype (class Newtype, unwrap)
-import Data.Traversable (traverse)
 import Data.Tuple.Nested ((/\))
 import Data.Unfoldable (none)
 import Options.Applicative.Internal.Utils (unLines)
 import Record as Record
 import Ripplat.Checking as Checking
 import Ripplat.Common (class ToError, Error, newError)
-import Ripplat.Grammr (Axiom, ColdAxiom, ColdId(..), ColdLemma, ColdProp, ColdTm, ColdVar, HotId(..), HotLemma, HotProp, HotTm, HotVar, Lemma, Module(..), Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), RuleName, Substitution, Tm(..), Var(..), VarName, HotAxiom)
+import Ripplat.Grammr (ColdAxiom, ColdLemma, ColdProp, Module(..), Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), decapitateLemma, substituteLemma)
 import Ripplat.Lattice (latLeq)
 import Ripplat.Normalization (normalizeLatTy)
 import Ripplat.Platform (Platform)
@@ -36,7 +33,7 @@ import Ripplat.Thermodynamics (coolAxiom, coolLemma, heatAxiom, heatLemma)
 import Ripplat.Unification (unify)
 import Ripplat.Unification as Unification
 import Text.Pretty (indent, quoteCode)
-import Utility (partitionEither, prop', runRWST', todoK)
+import Utility (partitionEither, prop', runRWST')
 
 --------------------------------------------------------------------------------
 
@@ -154,7 +151,7 @@ applyLemmaToAxiom lemma axiom = go # runExceptT >>= or >>> pure
         # (_ `runRWST'` (Unification.newCtx {} /\ Unification.newEnv {}))
     unless (isRight uniResult) $ throwError false
     -- apply substitution to rest of lemma
-    let lemma'' = substituteLemma uniEnv.sigma lemma'
+    lemma'' <- substituteLemma lemma' `runReaderT` uniEnv.sigma
     let delemma = decapitateLemma lemma''
     delemma' <- delemma # bitraverse coolLemma coolAxiom
     delemma' # either (lift <<< learnLemma) (lift <<< learnAxiom)
@@ -195,18 +192,3 @@ subsumedBy (Prop p1) (Prop p2) = do
     , latLeq l p1.arg p2.arg
     ]
 
---------------------------------------------------------------------------------
-
--- | Removes the head hypothesis of a lemma, which results in a stronger lemma
--- | (if there are other hypotheses) or an axiom (if there were no other
--- | hypotheses).
-decapitateLemma :: forall id. Lemma id -> Lemma id \/ Axiom id
-decapitateLemma lemma = case lemma.hyps of
-  Cons h hyps -> Left { name: lemma.name, head: h, hyps, conc: lemma.conc }
-  Nil -> Right { name: lemma.name, conc: lemma.conc }
-
-substituteLemma :: Substitution -> HotLemma -> HotLemma
-substituteLemma = todoK "substituteLemma"
-
-substituteAxiom :: Substitution -> HotAxiom -> HotAxiom
-substituteAxiom = todoK "substituteAxiom"

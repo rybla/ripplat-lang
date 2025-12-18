@@ -2,19 +2,22 @@ module Ripplat.Grammr where
 
 import Prelude
 
+import Control.Monad.Reader (ReaderT, asks)
 import Data.Either (Either(..))
 import Data.Either.Nested (type (\/))
 import Data.Eq.Generic (genericEq)
 import Data.Foldable (length)
 import Data.Generic.Rep (class Generic)
-import Data.List (List)
+import Data.Lens (view)
+import Data.Lens.At (at)
+import Data.List (List(..))
 import Data.Map (Map)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
+import Data.Traversable (traverse)
 import Options.Applicative.Internal.Utils (unLines)
 import Text.Pretty (class Pretty, commas, indent, pretty, unLines2)
-import Utility (todoK)
 
 --------------------------------------------------------------------------------
 
@@ -363,6 +366,14 @@ type Axiom id =
 type ColdAxiom = Axiom ColdId
 type HotAxiom = Axiom HotId
 
+-- | Removes the head hypothesis of a lemma, which results in a stronger lemma
+-- | (if there are other hypotheses) or an axiom (if there were no other
+-- | hypotheses).
+decapitateLemma :: forall id. Lemma id -> Lemma id \/ Axiom id
+decapitateLemma lemma = case lemma.hyps of
+  Cons h hyps -> Left { name: lemma.name, head: h, hyps, conc: lemma.conc }
+  Nil -> Right { name: lemma.name, conc: lemma.conc }
+
 --------------------------------------------------------------------------------
 
 -- TODO: is this still being used anywhere?
@@ -396,5 +407,27 @@ tyArity (TyDef td) = td.params # length
 
 type Substitution = Map HotVar HotTm
 
-substituteProp :: Substitution -> HotProp -> HotProp
-substituteProp = todoK "substituteProp"
+type SubstitutionT (m :: Type -> Type) = ReaderT Substitution m
+
+substituteLemma :: forall m. Monad m => HotLemma -> SubstitutionT m HotLemma
+substituteLemma lemma = do
+  head <- substituteProp lemma.head
+  hyps <- substituteProp `traverse` lemma.hyps
+  conc <- substituteProp lemma.conc
+  pure { name: lemma.name, head, hyps, conc }
+
+substituteAxiom :: forall m. Monad m => HotAxiom -> SubstitutionT m HotAxiom
+substituteAxiom axiom = do
+  conc <- substituteProp axiom.conc
+  pure { name: axiom.name, conc }
+
+substituteProp :: forall m. Monad m => HotProp -> SubstitutionT m HotProp
+substituteProp (Prop p) = do
+  arg <- substituteTm p.arg
+  pure $ Prop { name: p.name, arg }
+
+substituteTm :: forall m. Monad m => HotTm -> SubstitutionT m HotTm
+substituteTm t0@(VarTm v) = asks (view (at v)) <#> fromMaybe t0
+substituteTm UnitTm = pure UnitTm
+substituteTm (BoolTm b) = pure $ BoolTm b
+

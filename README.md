@@ -1,15 +1,11 @@
 # ripplat-lang
 
-To install dependencies:
+## Technologies
 
-```bash
-bun install
-```
+- [Bun](https://bun.sh)
+- [PureScript](https://purescript.org)
+- [Halogen](https://github.com/purescript-halogen/purescript-halogen)
 
-To run:
+## Usage
 
-```bash
-bun run index.ts
-```
-
-This project was created using `bun init` in bun v1.2.14. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+See the `Justfile` for commands.

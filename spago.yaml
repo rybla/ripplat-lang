@@ -1,12 +1,6 @@
 package:
   name: ripplat-lang
   dependencies:
-    - console
-    - effect
-    - prelude
-    - transformers
-    - halogen
-    - profunctor-lenses
     - aff
     - aff-promise
     - argonaut
@@ -17,21 +11,27 @@ package:
     - bifunctors
     - console
     - debug
+    - effect
     - either
     - foldable-traversable
     - functors
     - fuzzy
-    - lists
-    - lazy
+    - halogen
     - integers
+    - lazy
+    - lists
     - maybe
     - newtype
     - nonempty
     - ordered-collections
     - partial
+    - prelude
+    - profunctor-lenses
     - record
     - refs
+    - spec-node
     - strings
+    - transformers
     - tuples
     - unfoldable
     - unicode
@@ -41,7 +41,6 @@ package:
     - web-events
     - web-html
     - web-uievents
-    - spec-node
   test:
     main: Test.Main
     dependencies: []

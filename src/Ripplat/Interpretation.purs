@@ -25,15 +25,15 @@ import Options.Applicative.Internal.Utils (unLines)
 import Record as Record
 import Ripplat.Checking as Checking
 import Ripplat.Common (class ToError, Error, newError)
-import Ripplat.Grammr (ColdAxiom, ColdLemma, ColdProp, Module(..), Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), decapitateLemma, substituteLemma)
+import Ripplat.Grammr (ColdAxiom, ColdLemma, ColdProp, Lemma, Module(..), Prop(..), PropDef(..), PropName, Rule(..), RuleDef(..), Axiom, decapitateLemma, substituteLemma)
 import Ripplat.Lattice (latLeq)
 import Ripplat.Normalization (normalizeLatTy)
 import Ripplat.Platform (Platform)
 import Ripplat.Thermodynamics (coolAxiom, coolLemma, heatAxiom, heatLemma)
 import Ripplat.Unification (unify)
 import Ripplat.Unification as Unification
-import Text.Pretty (indent, quoteCode)
-import Utility (partitionEither, prop', runRWST')
+import Text.Pretty (class Pretty, bullets, indent, indentBullet, paren, pretty, quoteCode, unLines2)
+import Utility (partitionEither, prop', runRWST', todoK)
 
 --------------------------------------------------------------------------------
 
@@ -70,6 +70,41 @@ newEnv _args =
   { lemmaGroups: empty
   , axiomGroups: empty
   }
+
+prettyEnv :: Env -> String
+prettyEnv env =
+  unLines $
+    [ indentBullet <<< unLines $
+        [ "lemmas"
+        , unLines $
+            env.lemmaGroups
+              # (Map.toUnfoldable :: _ -> Array _)
+              # map \(name /\ lemmas) -> indentBullet <<< unLines $
+                  [ pretty name
+                  , unLines $
+                      map (indentBullet <<< prettyLemma) lemmas
+                  ]
+
+        ]
+    , indentBullet <<< unLines $
+        [ "axioms"
+        , unLines $
+            env.axiomGroups
+              # (Map.toUnfoldable :: _ -> Array _)
+              # map \(name /\ axioms) -> indentBullet <<< unLines $
+                  [ pretty name
+                  , unLines $
+                      map (indentBullet <<< prettyAxiom) axioms
+                  ]
+
+        ]
+    ]
+
+prettyLemma :: forall id. Pretty id => Lemma id -> String
+prettyLemma lemma = "lemma " <> paren (unwrap lemma.name) <> " : " <> pretty lemma.head <> ", " <> pretty lemma.hyps <> " |- " <> pretty lemma.conc
+
+prettyAxiom :: forall id. Pretty id => Axiom id -> String
+prettyAxiom axiom = "axiom " <> paren (unwrap axiom.name) <> " : " <> pretty axiom.conc
 
 newtype InterpretError = InterpretError
   { label :: String

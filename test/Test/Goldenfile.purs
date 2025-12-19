@@ -22,7 +22,6 @@ import Text.Pretty (indent)
 shouldEqualFile :: String -> FilePath -> Aff Unit
 shouldEqualFile actual expectedFilePath = do
   envRegolden <- getEnvRegolden
-  Console.log $ "REGOLDEN = " <> show envRegolden
   exists expectedFilePath # liftEffect >>= case _ of
     false -> do
       -- if goldenfile DOESN'T exist, then write it with actual text

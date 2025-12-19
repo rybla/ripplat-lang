@@ -38,4 +38,3 @@ newSuccessTest name m = it name do
     Right _ -> do
       writeTextFile UTF8 logFilePath
         (unLines $ concat $ [ map show logs ])
-

@@ -1,5 +1,5 @@
-  - lemmas
+  - rules
     
-  - axioms
+  - concs
       - P
-          - axiom (R1) : P(false)
+          - conclusion (R1) : P(false)

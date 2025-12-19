@@ -11,28 +11,32 @@ import Effect.Class (class MonadEffect)
 import Ripplat.Checking as Checking
 import Ripplat.Common (Error, Log, toError)
 import Ripplat.Grammr (Module)
+import Ripplat.Interpretation (Gas)
 import Ripplat.Interpretation as Interpretation
-import Ripplat.Platform (Platform, mockPlatform)
+import Ripplat.Platform (Platform)
 import Utility (runRWST')
 
 main
-  :: forall m
+  :: forall m r
    . MonadLogger Log m
   => MonadEffect m
   => MonadError (Array Error) m
-  => Platform m
-  -> Module
+  => { gas :: Gas
+     , module_ :: Module
+     , platform :: Platform m
+     | r
+     }
   -> m Unit
-main _pf md = do
+main args = do
 
   -- checking
   do
-    RWSResult _ _ chErrs <- Checking.checkModule md
+    RWSResult _ _ chErrs <- Checking.checkModule args.module_
       #
         ( _ `runRWST'`
             Tuple
-              (Checking.newCtx { module_: md })
-              (Checking.newEnv {})
+              (Checking.newCtx args)
+              (Checking.newEnv args)
         )
 
     unless (null chErrs) do
@@ -40,16 +44,12 @@ main _pf md = do
 
   -- interpretation
   do
-    RWSResult _ _ _ <- Interpretation.interpretModule md
+    RWSResult _ _ _ <- Interpretation.interpretModule args.module_
       #
         ( _ `runRWST'`
             Tuple
-              ( Interpretation.newCtx
-                  { module_: md
-                  , platform: mockPlatform
-                  }
-              )
-              (Interpretation.newEnv {})
+              (Interpretation.newCtx args)
+              (Interpretation.newEnv args)
 
         )
     pure unit

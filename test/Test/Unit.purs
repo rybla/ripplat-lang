@@ -17,6 +17,7 @@ import Effect.Aff.Class (liftAff)
 import Ripplat.Common (Log)
 import Ripplat.Common as Ripplat.Common
 import Ripplat.Grammr (Lat(..), Module(..), Tm(..), Ty'(..), Ty''(..), newLatDef, newProp, newPropDef, newRule, newRuleDef)
+import Ripplat.Interpretation (Gas(..))
 import Ripplat.Interpretation as Interpretation
 import Ripplat.Main.Simple as Main.Simple
 import Ripplat.Platform (Platform, mockPlatform)
@@ -31,6 +32,7 @@ spec = describe "Unit" do
   newSuccessTest
     { name: "ex1"
     , platform: mockPlatform
+    , gas: FiniteGas 20
     , module_: Module
         { name: wrap "Test"
         , tyDefs: []
@@ -52,6 +54,7 @@ spec = describe "Unit" do
   newSequentialSuccessTests
     { name: "ex2"
     , platform: mockPlatform
+    , gas: FiniteGas 20
     , module_: Module
         { name: wrap "Test"
         , tyDefs: []
@@ -81,6 +84,7 @@ newSuccessTest
    . { module_ :: Module
      , name :: String
      , platform :: Platform (ExceptT (Array Ripplat.Common.Error) (WriterT (Array Log) Aff))
+     , gas :: Gas
      | r
      }
   -> Spec Unit
@@ -95,6 +99,7 @@ newSequentialSuccessTests
    . { module_ :: Module
      , name :: String
      , platform :: Platform (ExceptT (Array Ripplat.Common.Error) (WriterT (Array Log) Aff))
+     , gas :: Gas
      | r
      }
   -> Array (Module -> Module)
@@ -115,6 +120,7 @@ newSequentialSuccessTests args =
                   { name: newName i
                   , module_: md'
                   , platform: args.platform
+                  , gas: args.gas
                   }
 
       )
@@ -123,6 +129,7 @@ newSequentialSuccessTests args =
             { name: newName 0
             , module_: args.module_
             , platform: args.platform
+            , gas: args.gas
             }
       )
       >>> extract

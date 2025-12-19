@@ -14,5 +14,5 @@ See the `Justfile` for commands.
 
 - [x] goldenfile unit tests for `Test.Unit`
 - [ ] `TmDef` for term aliases
-- [ ] rename `Axiom` to something better
+- [x] rename `Axiom` to `Conclusion`
 - [ ] properly substitute arguments of type alias when normalizing

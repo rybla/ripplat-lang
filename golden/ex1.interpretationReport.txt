@@ -1,6 +1,6 @@
-  - lemmas
+  - rules
     
-  - axioms
+  - concs
       - Prop1
-          - axiom (Rule1) : Prop1(unit)
-          - axiom (Rule2) : Prop1(unit)
+          - conclusion (Rule1) : Prop1(unit)
+          - conclusion (Rule2) : Prop1(unit)

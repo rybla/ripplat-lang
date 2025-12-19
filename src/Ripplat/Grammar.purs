@@ -6,11 +6,11 @@ import Control.Monad.Reader (ReaderT, asks)
 import Data.Either (Either(..))
 import Data.Either.Nested (type (\/))
 import Data.Eq.Generic (genericEq)
-import Data.Foldable (length)
+import Data.Foldable (length, null)
 import Data.Generic.Rep (class Generic)
 import Data.Lens (view)
 import Data.Lens.At (at)
-import Data.List (List(..))
+import Data.List (List)
 import Data.Map (Map)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (class Newtype, unwrap)
@@ -110,22 +110,25 @@ instance Pretty LatDef where
 
 --------------------------------------------------------------------------------
 
-newtype Rule = Rule
+newtype Rule' id = Rule
   { name :: RuleName
-  , hyps :: List ColdProp
-  , conc :: ColdProp
+  , hyps :: List (Prop id)
+  , conc :: Prop id
   }
 
 newRule :: RuleName -> List ColdProp -> ColdProp -> Rule
 newRule name hyps conc = Rule { name, hyps, conc }
 
-derive instance Newtype Rule _
-derive newtype instance Show Rule
+type HotRule = Rule' HotId
+type Rule = Rule' ColdId
+
+derive instance Newtype (Rule' id) _
+derive newtype instance Show id => Show (Rule' id)
 
 instance Pretty Rule where
   pretty (Rule r) = unLines
     [ "rule " <> unwrap r.name <> ":"
-    , indent $ unLines $ map pretty $ r.hyps
+    , indent $ if null r.hyps then "∅" else unLines $ map pretty $ r.hyps
     , indent "----"
     , indent $ pretty $ r.conc
     ]
@@ -248,7 +251,7 @@ instance Pretty var => Pretty (Var var) where
 -- TODO: actually, could hold a `Maybe Int` which is initialized to `Nothing`, so that when converting from HotProp to ColdProp we dont accidentally equate things by name if they've been substituted differently
 
 -- | Written rules are initialized as `Nothing`. Then derivative rules (i.e.
--- | lemmas and axioms) will have the numberings that indicate which variables
+-- | lemmas and conclusions) will have the numberings that indicate which variables
 -- | of the same name have been unified or not. Hot identifiers are cooled down
 -- | after unification is completed so that identifiers don't keep increasing
 -- | indefinitely when generating fresh identifiers. Cold identifiers are
@@ -346,34 +349,14 @@ instance Pretty VarName where
 
 --------------------------------------------------------------------------------
 
--- | A lemma is a rule that has at least one hypothesis, called the head hypothesis.
-type Lemma id =
+-- | An conclusion is a rule that has no hypotheses.
+type Conclusion id =
   { name :: RuleName
-  , head :: Prop id
-  , hyps :: List (Prop id)
-  , conc :: Prop id
+  , prop :: Prop id
   }
 
-type ColdLemma = Lemma ColdId
-type HotLemma = Lemma HotId
-
--- TODO: rename this from "Axiom" since they aren't _assumed_, they can be inferred. Could be "atomics" or "unconditionals" or something, which indicates they don't have hypotheses
--- | An axiom is a rule that has no hypotheses.
-type Axiom id =
-  { name :: RuleName
-  , conc :: Prop id
-  }
-
-type ColdAxiom = Axiom ColdId
-type HotAxiom = Axiom HotId
-
--- | Removes the head hypothesis of a lemma, which results in a stronger lemma
--- | (if there are other hypotheses) or an axiom (if there were no other
--- | hypotheses).
-decapitateLemma :: forall id. Lemma id -> Lemma id \/ Axiom id
-decapitateLemma lemma = case lemma.hyps of
-  Cons h hyps -> Left { name: lemma.name, head: h, hyps, conc: lemma.conc }
-  Nil -> Right { name: lemma.name, conc: lemma.conc }
+type ColdConclusion = Conclusion ColdId
+type HotConclusion = Conclusion HotId
 
 --------------------------------------------------------------------------------
 
@@ -410,17 +393,16 @@ type Substitution = Map HotVar HotTm
 
 type SubstitutionT (m :: Type -> Type) = ReaderT Substitution m
 
-substituteLemma :: forall m. Monad m => HotLemma -> SubstitutionT m HotLemma
-substituteLemma lemma = do
-  head <- substituteProp lemma.head
-  hyps <- substituteProp `traverse` lemma.hyps
-  conc <- substituteProp lemma.conc
-  pure { name: lemma.name, head, hyps, conc }
+substituteRule :: forall m. Monad m => HotRule -> SubstitutionT m HotRule
+substituteRule (Rule r) = do
+  hyps <- substituteProp `traverse` r.hyps
+  conc <- substituteProp r.conc
+  pure $ Rule r { hyps = hyps, conc = conc }
 
-substituteAxiom :: forall m. Monad m => HotAxiom -> SubstitutionT m HotAxiom
-substituteAxiom axiom = do
-  conc <- substituteProp axiom.conc
-  pure { name: axiom.name, conc }
+substituteConclusion :: forall m. Monad m => HotConclusion -> SubstitutionT m HotConclusion
+substituteConclusion conclusion = do
+  prop <- substituteProp conclusion.prop
+  pure { name: conclusion.name, prop }
 
 substituteProp :: forall m. Monad m => HotProp -> SubstitutionT m HotProp
 substituteProp (Prop p) = do

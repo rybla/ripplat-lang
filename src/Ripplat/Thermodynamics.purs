@@ -2,30 +2,33 @@ module Ripplat.Thermodynamics where
 
 import Prelude
 
-import Control.Monad.State (StateT, gets)
+import Control.Monad.State (StateT, evalStateT, gets)
+import Control.Plus (empty)
 import Data.Lens (view, (.=))
 import Data.Lens.At (at)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
-import Ripplat.Grammr (ColdAxiom, ColdId(..), ColdLemma, ColdProp, ColdTm, ColdVar, HotId(..), HotLemma, HotProp, HotTm, HotVar, Prop(..), Tm(..), Var(..), VarName, HotAxiom)
+import Ripplat.Grammr (ColdConclusion, ColdId(..), ColdProp, ColdTm, ColdVar, HotConclusion, HotId(..), HotProp, HotRule, HotTm, HotVar, Prop(..), Rule, Rule'(..), Tm(..), Var(..), VarName)
 
 --------------------------------------------------------------------------------
 
 type HeatT = StateT (Map VarName (Map ColdId HotId))
 
-heatLemma :: forall m. Monad m => ColdLemma -> HeatT m HotLemma
-heatLemma lemma = do
-  head <- heatProp lemma.head
-  hyps <- heatProp `traverse` lemma.hyps
-  conc <- heatProp lemma.conc
-  pure { name: lemma.name, head, hyps, conc }
+runHeatT :: forall m a. Monad m => HeatT m a -> m a
+runHeatT = (_ `evalStateT` empty)
 
-heatAxiom :: forall m. Monad m => ColdAxiom -> HeatT m HotAxiom
-heatAxiom axiom = do
-  conc <- heatProp axiom.conc
-  pure { name: axiom.name, conc }
+heatRule :: forall m. Monad m => Rule -> HeatT m HotRule
+heatRule (Rule r) = do
+  hyps <- heatProp `traverse` r.hyps
+  conc <- heatProp r.conc
+  pure $ Rule { name: r.name, hyps, conc }
+
+heatConclusion :: forall m. Monad m => ColdConclusion -> HeatT m HotConclusion
+heatConclusion conc = do
+  prop <- heatProp conc.prop
+  pure { name: conc.name, prop }
 
 heatProp :: forall m. Monad m => ColdProp -> HeatT m HotProp
 heatProp (Prop p) = do
@@ -56,17 +59,16 @@ heatVar (Var v) = at v.name # view # gets >>= case _ of
 
 --------------------------------------------------------------------------------
 
-coolLemma :: forall m. Monad m => HotLemma -> m ColdLemma
-coolLemma lemma = do
-  head <- coolProp lemma.head
-  hyps <- coolProp `traverse` lemma.hyps
-  conc <- coolProp lemma.conc
-  pure { name: lemma.name, head, hyps, conc }
+coolRule :: forall m. Monad m => HotRule -> m Rule
+coolRule (Rule r) = do
+  hyps <- coolProp `traverse` r.hyps
+  conc <- coolProp r.conc
+  pure $ Rule { name: r.name, hyps, conc }
 
-coolAxiom :: forall m. Monad m => HotAxiom -> m ColdAxiom
-coolAxiom axiom = do
-  conc <- coolProp axiom.conc
-  pure { name: axiom.name, conc }
+coolConclusion :: forall m. Monad m => HotConclusion -> m ColdConclusion
+coolConclusion conc = do
+  prop <- coolProp conc.prop
+  pure { name: conc.name, prop }
 
 coolProp :: forall m. Monad m => HotProp -> m ColdProp
 coolProp (Prop p) = do

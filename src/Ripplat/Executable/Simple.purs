@@ -12,56 +12,56 @@ import Options.Applicative.Internal.Utils (unLines)
 import Ripplat.Checking as Checking
 import Ripplat.Common (Error, Log, newLog, toError)
 import Ripplat.Grammr (Module)
+import Ripplat.Interpretation (Gas)
 import Ripplat.Interpretation as Interpretation
 import Ripplat.Platform (Platform)
 import Text.Pretty (indent, pretty)
 import Utility (runRWST')
 
 main
-  :: forall m
+  :: forall m r
    . MonadLogger Log m
   => MonadEffect m
   => MonadError (Array Error) m
-  => Platform m
-  -> Module
+  => { platform :: Platform m
+     , gas :: Gas
+     , module_ :: Module
+     , gas :: Gas
+     | r
+     }
   -> m Unit
-main platform md = do
+main args = do
   log $ newLog [ "main" ] $ "executable: Simple"
 
   -- checking
   do
-    RWSResult _ _ errs <- Checking.checkModule md
-      #
-        ( _ `runRWST'`
-            Tuple
-              (Checking.newCtx { module_: md })
-              (Checking.newEnv {})
-        )
+    RWSResult _ _ errs <-
+      Checking.checkModule args.module_
+        # flip runRWST'
+            ( Tuple
+                (Checking.newCtx args)
+                (Checking.newEnv {})
+            )
 
     unless (null errs) do
       throwError $ map (toError [ "check" ]) errs
 
   -- interpretation
   do
-    RWSResult env _ errs <- Interpretation.interpretModule md
-      #
-        ( _ `runRWST'`
-            Tuple
-              ( Interpretation.newCtx
-                  { module_: md
-                  , platform
-                  }
-              )
-              (Interpretation.newEnv {})
-
-        )
+    RWSResult env _ errs <-
+      Interpretation.interpretModule args.module_
+        # flip runRWST'
+            ( Tuple
+                (Interpretation.newCtx args)
+                (Interpretation.newEnv args)
+            )
 
     unless (null errs) do
       throwError $ map (toError [ "interpret" ]) errs
 
     log $ newLog [ "main" ] $ unLines
-      [ "learned axioms:"
-      , indent $ unLines $ map (indent <<< unLines <<< map \axiom -> pretty axiom.conc) $ env.axiomGroups
+      [ "learned conclusions:"
+      , indent $ unLines $ map (indent <<< unLines <<< map \conc -> pretty conc.prop) $ env.concGroups
       ]
 
     pure unit

@@ -11,6 +11,7 @@ import Options.Applicative.Internal.Utils (unLines)
 import Ripplat.Checking as Checking
 import Ripplat.Common (Error, Log, newLog, toError)
 import Ripplat.Grammr (Module)
+import Ripplat.Interpretation (Gas)
 import Ripplat.Interpretation as Interpretation
 import Ripplat.Platform (Platform)
 import Text.Pretty (indent, pretty)
@@ -22,6 +23,7 @@ main
   => MonadError (Array Error) m
   => { platform :: Platform m
      , module_ :: Module
+     , gas :: Gas
      | r
      }
   -> m
@@ -35,8 +37,8 @@ main args = do
     RWSResult _ _ errs <- Checking.checkModule args.module_
       `runRWST'`
         Tuple
-          (Checking.newCtx { module_: args.module_ })
-          (Checking.newEnv {})
+          (Checking.newCtx args)
+          (Checking.newEnv args)
 
     unless (null errs) do
       throwError $ map (toError [ "check" ]) errs
@@ -46,19 +48,15 @@ main args = do
     RWSResult env _ errs <- Interpretation.interpretModule args.module_
       `runRWST'`
         Tuple
-          ( Interpretation.newCtx
-              { module_: args.module_
-              , platform: args.platform
-              }
-          )
-          (Interpretation.newEnv {})
+          (Interpretation.newCtx args)
+          (Interpretation.newEnv args)
 
     unless (null errs) do
       throwError $ map (toError [ "interpret" ]) errs
 
     log $ newLog [ "main" ] $ unLines
-      [ "learned axioms:"
-      , indent $ unLines $ map (indent <<< unLines <<< map \axiom -> pretty axiom.conc) $ env.axiomGroups
+      [ "learned conclusions:"
+      , indent $ unLines $ map (indent <<< unLines <<< map \conc -> pretty conc.prop) $ env.concGroups
       ]
 
     pure env

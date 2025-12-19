@@ -43,3 +43,4 @@ class ToError a where
 
 toError :: forall a. ToError a => Array String -> a -> Error
 toError path a = newError path (toErrorMsg a)
+

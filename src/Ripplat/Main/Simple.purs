@@ -17,11 +17,12 @@ import Text.Pretty (indent, pretty)
 import Utility (runRWST')
 
 main
-  :: forall m
+  :: forall m r
    . MonadLogger Log m
   => MonadError (Array Error) m
   => { platform :: Platform m
      , module_ :: Module
+     | r
      }
   -> m
        { interpretationEnv :: Interpretation.Env

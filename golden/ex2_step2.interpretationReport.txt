@@ -1,0 +1,6 @@
+  - lemmas
+      - P
+          - lemma (R2) : P(false), [] |- P(true)
+  - axioms
+      - P
+          - axiom (R1) : P(false)

@@ -22,7 +22,7 @@ import Ripplat.Main.Simple as Main.Simple
 import Ripplat.Platform (Platform, mockPlatform)
 import Test.Common as Common
 import Test.Goldenfile (shouldEqualFile)
-import Test.Spec (Spec, describe, it)
+import Test.Spec (Spec, describe)
 import Utility (prop')
 
 spec :: Spec Unit
@@ -57,15 +57,21 @@ spec = describe "Unit" do
         , tyDefs: []
         , latDefs: []
         , propDefs: [ newPropDef (wrap "P") (Ty' CanonicalLat BoolTy) ]
-        , ruleDefs:
-            [ newRuleDef $ newRule
-                (wrap "R1")
-                ([] # List.fromFoldable)
-                (newProp (wrap "P") (BoolTm false))
-            ]
+        , ruleDefs: []
         }
     }
-    [ _Newtype <<< prop' @"ruleDefs" <>~ []
+    [ _Newtype <<< prop' @"ruleDefs" <>~
+        [ newRuleDef $ newRule
+            (wrap "R1")
+            ([] # List.fromFoldable)
+            (newProp (wrap "P") (BoolTm false))
+        ]
+    , _Newtype <<< prop' @"ruleDefs" <>~
+        [ newRuleDef $ newRule
+            (wrap "R2")
+            ([ newProp (wrap "P") (BoolTm false) ] # List.fromFoldable)
+            (newProp (wrap "P") (BoolTm true))
+        ]
     ]
 
   pure unit
@@ -79,7 +85,7 @@ newSuccessTest
      }
   -> Spec Unit
 newSuccessTest args = do
-  it args.name $ Common.newSuccessTest $ do
+  Common.newSuccessTest args.name do
     res <- Main.Simple.main args
     let report = Interpretation.prettyEnv res.interpretationEnv
     liftAff $ shouldEqualFile report $ joinWith "/" [ "golden", args.name <> ".interpretationReport.txt" ]
@@ -94,22 +100,30 @@ newSequentialSuccessTests
   -> Array (Module -> Module)
   -> Spec Unit
 newSequentialSuccessTests args =
-  foldl
-    ( \((i /\ md) /\ m) k ->
-        let
-          md' = k md
-          name = args.name <> "_step" <> show i
-        in
-          ((i + 1) /\ md') /\
-            do
-              m
-              newSuccessTest
-                { name
-                , module_: md'
-                , platform: args.platform
-                }
+  let
+    newName i = args.name <> "_step" <> show i
+  in
+    foldl
+      ( \((i /\ md) /\ m) k ->
+          let
+            md' = k md
+          in
+            ((i + 1) /\ md') /\
+              do
+                m
+                newSuccessTest
+                  { name: newName i
+                  , module_: md'
+                  , platform: args.platform
+                  }
 
-    )
-    ((0 /\ args.module_) /\ pure unit)
-    >>> extract
+      )
+      ( (1 /\ args.module_) /\ do
+          newSuccessTest
+            { name: newName 0
+            , module_: args.module_
+            , platform: args.platform
+            }
+      )
+      >>> extract
 

@@ -25,6 +25,7 @@ shouldEqualFile actual expectedFilePath = do
   exists expectedFilePath # liftEffect >>= case _ of
     false -> do
       -- if goldenfile DOESN'T exist, then write it with actual text
+      Console.log $ "Initializing goldenfile: " <> show expectedFilePath
       writeTextFile UTF8 expectedFilePath actual
     true -> do
       let actualLines = actual # split (Pattern "\n")

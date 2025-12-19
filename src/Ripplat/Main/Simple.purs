@@ -23,7 +23,9 @@ main
   => { platform :: Platform m
      , module_ :: Module
      }
-  -> m { interpretationEnv :: Interpretation.Env }
+  -> m
+       { interpretationEnv :: Interpretation.Env
+       }
 main args = do
   log $ newLog [ "main" ] $ "executable: Simple"
 

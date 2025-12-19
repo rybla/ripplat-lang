@@ -32,8 +32,8 @@ import Ripplat.Platform (Platform)
 import Ripplat.Thermodynamics (coolAxiom, coolLemma, heatAxiom, heatLemma)
 import Ripplat.Unification (unify)
 import Ripplat.Unification as Unification
-import Text.Pretty (class Pretty, bullets, indent, indentBullet, paren, pretty, quoteCode, unLines2)
-import Utility (partitionEither, prop', runRWST', todoK)
+import Text.Pretty (class Pretty, indent, indentBullet, paren, pretty, quoteCode)
+import Utility (partitionEither, prop', runRWST')
 
 --------------------------------------------------------------------------------
 

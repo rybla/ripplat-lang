@@ -38,16 +38,7 @@ spec = describe "Unit" do
         , tyDefs: []
         , latDefs: [ newLatDef (wrap "Lat1") [] (Ty' CanonicalLat UnitTy) ]
         , propDefs: [ newPropDef (wrap "Prop1") (RefTy (wrap "Lat1") []) ]
-        , ruleDefs:
-            [ newRuleDef $ newRule
-                (wrap "Rule1")
-                ([] # List.fromFoldable)
-                (newProp (wrap "Prop1") UnitTm)
-            , newRuleDef $ newRule
-                (wrap "Rule2")
-                ([] # List.fromFoldable)
-                (newProp (wrap "Prop1") UnitTm)
-            ]
+        , ruleDefs: []
         }
     }
 
@@ -66,12 +57,6 @@ spec = describe "Unit" do
     [ _Newtype <<< prop' @"ruleDefs" <>~
         [ newRuleDef $ newRule
             (wrap "R1")
-            ([] # List.fromFoldable)
-            (newProp (wrap "P") (BoolTm false))
-        ]
-    , _Newtype <<< prop' @"ruleDefs" <>~
-        [ newRuleDef $ newRule
-            (wrap "R2")
             ([ newProp (wrap "P") (BoolTm false) ] # List.fromFoldable)
             (newProp (wrap "P") (BoolTm true))
         ]

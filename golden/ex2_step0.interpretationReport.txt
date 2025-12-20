@@ -1,4 +1,4 @@
   - rules
     
   - concs
-    
+      - conclusion (Bottom of P) : P(false)

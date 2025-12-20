@@ -17,7 +17,7 @@ import Data.Newtype (class Newtype, unwrap)
 import Data.Show.Generic (genericShow)
 import Data.Traversable (traverse)
 import Options.Applicative.Internal.Utils (unLines)
-import Text.Pretty (class Pretty, commas, indent, pretty, unLines2)
+import Text.Pretty (class Pretty, commas, indent, paren, pretty, unLines2)
 
 --------------------------------------------------------------------------------
 
@@ -141,6 +141,14 @@ newtype Prop id = Prop
 newProp :: forall id. PropName -> Tm id -> Prop id
 newProp name arg = Prop { name, arg }
 
+minProp :: forall id. PropName -> NormLat -> Prop id
+minProp name l = Prop { name, arg: minTm l }
+
+minTm :: forall id. NormLat -> Tm id
+minTm (RefTy x _) = absurd x
+minTm (Ty' CanonicalLat UnitTy) = UnitTm
+minTm (Ty' CanonicalLat BoolTy) = BoolTm false
+
 type ColdProp = Prop ColdId
 type HotProp = Prop HotId
 
@@ -247,8 +255,6 @@ derive newtype instance Ord var => Ord (Var var)
 
 instance Pretty var => Pretty (Var var) where
   pretty (Var v) = unwrap v.name <> pretty v.id
-
--- TODO: actually, could hold a `Maybe Int` which is initialized to `Nothing`, so that when converting from HotProp to ColdProp we dont accidentally equate things by name if they've been substituted differently
 
 -- | Written rules are initialized as `Nothing`. Then derivative rules (i.e.
 -- | lemmas and conclusions) will have the numberings that indicate which variables
@@ -357,6 +363,9 @@ type Conclusion id =
 
 type ColdConclusion = Conclusion ColdId
 type HotConclusion = Conclusion HotId
+
+prettyConclusion :: forall id. Pretty id => Conclusion id -> String
+prettyConclusion conc = "conclusion " <> paren (unwrap conc.name) <> " : " <> pretty conc.prop
 
 --------------------------------------------------------------------------------
 

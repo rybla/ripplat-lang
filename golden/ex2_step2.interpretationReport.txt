@@ -1,9 +1,0 @@
-  - rules
-      - rule R2:
-            P(false)
-            ----
-            P(true)
-  - concs
-      - P
-          - conclusion (R2) : P(true)
-          - conclusion (R1) : P(false)

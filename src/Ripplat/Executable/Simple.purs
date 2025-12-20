@@ -11,11 +11,11 @@ import Effect.Class (class MonadEffect)
 import Options.Applicative.Internal.Utils (unLines)
 import Ripplat.Checking as Checking
 import Ripplat.Common (Error, Log, newLog, toError)
-import Ripplat.Grammr (Module)
+import Ripplat.Grammr (Module, prettyConclusion)
 import Ripplat.Interpretation (Gas)
 import Ripplat.Interpretation as Interpretation
 import Ripplat.Platform (Platform)
-import Text.Pretty (indent, pretty)
+import Text.Pretty (indent, indentBullet)
 import Utility (runRWST')
 
 main
@@ -61,7 +61,7 @@ main args = do
 
     log $ newLog [ "main" ] $ unLines
       [ "learned conclusions:"
-      , indent $ unLines $ map (indent <<< unLines <<< map \conc -> pretty conc.prop) $ env.concGroups
+      , indent $ unLines $ map (indentBullet <<< prettyConclusion) $ env.concs
       ]
 
     pure unit

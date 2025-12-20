@@ -1,5 +1,7 @@
   - rules
-    
+      - rule R1:
+            P(false)
+            ----
+            P(true)
   - concs
-      - P
-          - conclusion (R1) : P(false)
+      - conclusion (R1) : P(true)

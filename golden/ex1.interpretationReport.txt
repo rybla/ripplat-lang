@@ -1,6 +1,4 @@
   - rules
     
   - concs
-      - Prop1
-          - conclusion (Rule1) : Prop1(unit)
-          - conclusion (Rule2) : Prop1(unit)
+      - conclusion (Bottom of Prop1) : Prop1(unit)

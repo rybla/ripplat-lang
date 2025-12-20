@@ -54,6 +54,4 @@ main args = do
         )
     pure unit
 
-  -- TODO
-
   pure unit

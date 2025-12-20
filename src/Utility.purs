@@ -36,3 +36,7 @@ partitionEither f = foldl
 
 runRWST' :: forall r w s m a. RWST r w s m a -> (r /\ s) -> m (RWSResult s a w)
 runRWST' m (r /\ s) = runRWST m r s
+
+unimplemented :: forall a. String -> a
+unimplemented msg = unsafeCrashWith $ "Unimplemented: " <> msg
+

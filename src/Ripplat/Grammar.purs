@@ -3,8 +3,6 @@ module Ripplat.Grammr where
 import Prelude
 
 import Control.Monad.Reader (ReaderT, asks)
-import Data.Either (Either(..))
-import Data.Either.Nested (type (\/))
 import Data.Eq.Generic (genericEq)
 import Data.Foldable (length, null)
 import Data.Generic.Rep (class Generic)
@@ -366,19 +364,6 @@ type HotConclusion = Conclusion HotId
 
 prettyConclusion :: forall id. Pretty id => Conclusion id -> String
 prettyConclusion conc = "conclusion " <> paren (unwrap conc.name) <> " : " <> pretty conc.prop
-
---------------------------------------------------------------------------------
-
--- TODO: is this still being used anywhere?
-
-class LatOrUnit lat where
-  fromLatOrUnit :: forall f. Functor f => f lat -> f Lat \/ f Unit
-
-instance LatOrUnit Lat where
-  fromLatOrUnit = Left
-
-instance LatOrUnit Unit where
-  fromLatOrUnit = Right
 
 --------------------------------------------------------------------------------
 

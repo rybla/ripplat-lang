@@ -97,7 +97,7 @@ prettyEnv env =
         , unLines $
             env.concs
               # (Map.toUnfoldable :: _ -> Array _)
-              # map \(name /\ conc) -> indentBullet $ prettyConclusion $ conc
+              # map \(_name /\ conc) -> indentBullet $ prettyConclusion $ conc
 
         ]
     ]

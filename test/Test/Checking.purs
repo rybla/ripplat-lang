@@ -2,17 +2,16 @@ module Test.Checking where
 
 import Prelude
 
-import Control.Monad.Except (class MonadError, throwError)
-import Control.Monad.RWS (RWSResult(..), runRWST)
+import Control.Monad.Except (throwError)
+import Control.Monad.RWS (RWSResult(..))
 import Data.Foldable (null)
 import Data.Newtype (wrap)
 import Data.Tuple (Tuple(..))
-import Effect.Exception as Exception
 import Ripplat.Checking (checkModule, newCtx, newEnv)
 import Ripplat.Common (newError, toError)
 import Ripplat.Grammr (Lat(..), Module(..), Tm(..), Ty'(..), Ty''(..), newLatDef, newProp, newPropDef, newRule, newRuleDef)
 import Test.Common as Common
-import Test.Spec (Spec, describe, it)
+import Test.Spec (Spec, describe)
 import Utility (runRWST')
 
 spec :: Spec Unit

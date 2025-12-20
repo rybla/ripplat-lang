@@ -1,6 +1,9 @@
-  - lemmas
+  - rules
+      - rule R2:
+            P(false)
+            ----
+            P(true)
+  - concs
       - P
-          - lemma (R2) : P(false), [] |- P(true)
-  - axioms
-      - P
-          - axiom (R1) : P(false)
+          - conclusion (R2) : P(true)
+          - conclusion (R1) : P(false)

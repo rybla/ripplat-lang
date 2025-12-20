@@ -9,10 +9,11 @@ import Control.Monad.Reader (asks, runReaderT)
 import Control.Monad.State (StateT, execStateT, gets)
 import Control.Monad.Trans.Class (lift)
 import Control.Plus (empty)
+import Data.Array as Array
 import Data.Either (Either(..), either)
 import Data.Either.Nested (type (\/))
 import Data.Foldable (and, fold, null, traverse_)
-import Data.Lens (view, (.=))
+import Data.Lens (view, (%=), (.=), (<>~))
 import Data.Lens.At (at)
 import Data.Lens.Index (ix)
 import Data.List (List(..))
@@ -66,6 +67,7 @@ newCtx args =
 type Env =
   { gas :: Gas
   , rules :: Array Rule
+  -- TODO: there should only be one conclusion for each prop, and so this should be Map PropName ColdConclusion
   , concGroups :: Map PropName (Array ColdConclusion)
   }
 
@@ -175,7 +177,7 @@ applyRule :: forall m. MonadError (Array Error) m => MonadLogger Log m => Rule -
 applyRule rule = do
   void $ lift (prop' @"gas" # view # gets) >>= case _ of
     InfiniteGas -> pure unit
-    FiniteGas g | g <= 0 -> throwError [ newError [ "interpretation", "applyRule" ] $ "Ran out of gas when applying rule " <> pretty rule ]
+    FiniteGas g | g <= 0 -> throwError [ newError [ "interpretation", "applyRule" ] $ unLines [ "Ran out of gas when applying rule:", indent (pretty rule) ] ]
     FiniteGas g -> lift $ prop' @"gas" .= FiniteGas (g - 1)
   log $ newLog [ "interpretation", "applyRule" ] $ pretty rule
   applyRule' rule # runExceptT # lift >>= traverse_
@@ -221,17 +223,22 @@ learnConclusion conc = go # runExceptT >>= either pure (const (pure true))
     concs <- lift $ gets $ view $ prop' @"concGroups" <<< ix (conc.prop # unwrap).name
     concs # traverse_ \conc' -> do
       whenM (lift $ subsumedBy conc.prop conc'.prop) do
-        log $ newLog [ "interpretation", "learnConclusion" ] $ "Candidate conclusion " <> quoteCode (prettyConclusion conc) <> " is already subsumed by known conclusion " <> quoteCode (prettyConclusion conc')
+        log $ newLog [ "interpretation", "learnConclusion" ] $ "Ignored candidate conclusion " <> quoteCode (prettyConclusion conc) <> " because it is already subsumed by known conclusion " <> quoteCode (prettyConclusion conc')
         throwError false
       log $ newLog [ "interpretation", "learnConclusion" ] $ "Learned new conclusion " <> quoteCode (prettyConclusion conc)
+      lift $ prop' @"concGroups" <<< ix (conc.prop # unwrap).name %= Array.cons conc
 
 -- | Check if the first proposition is subsumed by the second proposition.
-subsumedBy :: forall m. MonadError (Array Error) m => ColdProp -> ColdProp -> T m Boolean
+subsumedBy :: forall m. MonadError (Array Error) m => MonadLogger Log m => ColdProp -> ColdProp -> T m Boolean
 subsumedBy (Prop p1) (Prop p2) = do
+  -- log $ newLog [ "interpretation", "subsumedBy" ] $ pretty (Prop p1) <> " ?<= " <> pretty (Prop p2)
   PropDef pd <- prop' @"propDefs" <<< at p1.name # view # asks >>= maybe (throwError [ newError [ "interpretation", "subsumedBy" ] $ "Reference to unknown proposition of the name " <> quoteCode (unwrap p1.name) ]) pure
   l <- normalizeLatTy pd.param
-  pure $ and
-    [ p1.name == p2.name
-    , latLeq l p1.arg p2.arg
-    ]
+  let
+    result = and
+      [ p1.name == p2.name
+      , latLeq l p1.arg p2.arg
+      ]
+  log $ newLog [ "interpretation", "subsumedBy" ] $ pretty (Prop p1) <> " ?<= " <> pretty (Prop p2) <> " ==> " <> pretty result
+  pure result
 
